@@ -24,6 +24,8 @@ THE SOFTWARE.
  */
 package org.jenkinsci.plugins;
 
+import org.jenkinsci.plugins.PhabricatorOAuthUserDetails;
+
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
@@ -65,7 +67,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
 	private static final String OAUTH_SCOPES = "whoami";
 	private static final String PHAB_OAUTH = "oauthserver/";
-	private static final String PHAB_API = "api/user.whoami";
+	protected static final String PHAB_API = "api/user.whoami";
 	private static final String REFERER_ATTRIBUTE = PhabricatorSecurityRealm.class
 			.getName() + ".referer";
 	private static final Logger LOGGER = Logger
@@ -151,13 +153,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			Protocol.registerProtocol("https", easyhttps);
 		}
 
-		HttpGet httpGet = new HttpGet(authUrl);
-		DefaultHttpClient httpclient = new DefaultHttpClient();
-		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
-		HttpEntity entity = response.getEntity();
-		String content = EntityUtils.toString(entity);
-		httpclient.getConnectionManager().shutdown();
-
+        String content = getUrlContent(authUrl);
 		String accessToken;
 		try {
 			JSONObject jsonObject = new JSONObject(content);
@@ -184,6 +180,16 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
 		return HttpResponses.redirectToContextRoot();
 	}
+
+    protected String getUrlContent(String url) throws IOException {
+		HttpGet httpGet = new HttpGet(url);
+		DefaultHttpClient httpclient = new DefaultHttpClient();
+		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
+		HttpEntity entity = response.getEntity();
+		String content = EntityUtils.toString(entity);
+		httpclient.getConnectionManager().shutdown();
+        return content;
+    }
 
 	@Override
 	public boolean allowsSignup() {
@@ -223,19 +229,18 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) {
-		// TODO: load by username
         PhabricatorAuthenticationToken authToken =
             (PhabricatorAuthenticationToken) SecurityContextHolder
             .getContext().getAuthentication();
         if (authToken == null) {
-            throw new UserMayOrMayNotExistException("Could not get auth token.");
+            throw new UsernameNotFoundException("Could not get auth token.");
         }
 
-        PhabricatorOAuthUserDetails userDetails = authToken.getUserDetails(username);
+        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username);
         if (userDetails == null)
             throw new UsernameNotFoundException("Unknown user: " + username);
 
-		return new userDetails;
+		return userDetails;
 	}
 
 	@Extension

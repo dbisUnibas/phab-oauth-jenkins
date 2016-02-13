@@ -33,11 +33,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.logging.Level;
 
 import jenkins.model.Jenkins;
 
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.AbstractAuthenticationToken;
+import org.acegisecurity.BadCredentialsException;
 
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
 
@@ -54,11 +56,6 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 		super(new GrantedAuthority[] {});
 
 		this.accessToken = accessToken;
-		this.userName = "";
-
-		// Authenticate using token
-
-		setAuthenticated(true);
 
 		authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
 		if (Jenkins.getInstance().getSecurityRealm() instanceof PhabricatorSecurityRealm) {
@@ -67,7 +64,24 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 						.getSecurityRealm();
 			}
 		}
+
+        PhabricatorUser user = authUsingToken(accessToken);
+        if (user == null){
+            throw new BadCredentialsException(
+                "Unexpected authentication type");
+        }
+
+        userName = user.getUsername();
+		setAuthenticated(true);
 	}
+
+    private PhabricatorUser authUsingToken(String token) throws IOException {
+        String serverURL = myRealm.getServerURL();
+        String result = myRealm.getUrlContent(serverURL + myRealm.PHAB_API 
+                + "?access_token=" + token);
+        LOGGER.log(Level.WARNING, "content=" + result);
+        return new PhabricatorUser("blah");
+    }
 
 	public String getAccessToken() {
 		return accessToken;
