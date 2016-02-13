@@ -224,7 +224,18 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 	@Override
 	public UserDetails loadUserByUsername(String username) {
 		// TODO: load by username
-		return new PhabricatorOAuthUserDetails(username);
+        PhabricatorAuthenticationToken authToken =
+            (PhabricatorAuthenticationToken) SecurityContextHolder
+            .getContext().getAuthentication();
+        if (authToken == null) {
+            throw new UserMayOrMayNotExistException("Could not get auth token.");
+        }
+
+        PhabricatorOAuthUserDetails userDetails = authToken.getUserDetails(username);
+        if (userDetails == null)
+            throw new UsernameNotFoundException("Unknown user: " + username);
+
+		return new userDetails;
 	}
 
 	@Extension
