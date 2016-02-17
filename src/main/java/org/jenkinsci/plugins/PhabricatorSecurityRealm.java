@@ -38,6 +38,12 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
+import org.acegisecurity.GrantedAuthority;
+
+import hudson.security.SecurityRealm;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationException;
@@ -242,7 +248,11 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
             throw new UsernameNotFoundException("Could not get auth token.");
         }
 
-        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username);
+        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+        authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
+
+        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username,
+                authorities.toArray(new GrantedAuthority[authorities.size()]));
         if (userDetails == null)
             throw new UsernameNotFoundException("Unknown user: " + username);
 

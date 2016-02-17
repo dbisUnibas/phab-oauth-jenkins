@@ -25,13 +25,14 @@ package org.jenkinsci.plugins;
 
 import org.acegisecurity.userdetails.User;
 import org.acegisecurity.userdetails.UserDetails;
+import org.acegisecurity.GrantedAuthority;
 
 public class PhabricatorOAuthUserDetails extends User implements UserDetails {
 
 	private static final long serialVersionUID = 1L;
 
-	public PhabricatorOAuthUserDetails(String user) {
-		super(user, "", true, true, true, true, null);
+	public PhabricatorOAuthUserDetails(String user, GrantedAuthority[] authorities) {
+		super(user, "", true, true, true, true, authorities);
 	}
 
 }
