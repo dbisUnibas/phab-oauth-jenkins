@@ -26,13 +26,31 @@ package org.jenkinsci.plugins;
 public class PhabricatorUser {
 
     private String username;
+    private String realname;
+    private String email;
+    private String avatar;
 
-	public PhabricatorUser(String username) {
+	public PhabricatorUser(String username, String realname, String email, String avatar) {
         this.username = username;
+        this.realname = realname;
+        this.email = email;
+        this.avatar = avatar;
 	}
 
     public String getUsername() {
         return username;
+    }
+
+    public String getRealname() {
+        return realname;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public String getAvatar() {
+        return avatar;
     }
 
 }

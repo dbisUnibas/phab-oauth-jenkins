@@ -29,7 +29,9 @@ import org.jenkinsci.plugins.PhabricatorOAuthUserDetails;
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
+import hudson.model.User;
 import hudson.security.SecurityRealm;
+import hudson.tasks.Mailer;
 
 import java.io.IOException;
 import java.util.logging.Level;
@@ -168,7 +170,11 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken(
 					accessToken);
 			SecurityContextHolder.getContext().setAuthentication(auth);
-			// User u = User.current();
+            PhabricatorUser user = auth.getUser();
+		    User u = User.current();
+            u.setFullName(user.getRealname());
+            u.addProperty(new Mailer.UserProperty(user.getEmail()));
+            // TODO: What is it for the u object ?
 		} else {
 			Log.info("Phabricator did not return an access token.");
 		}
