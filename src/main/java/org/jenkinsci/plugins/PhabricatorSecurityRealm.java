@@ -77,7 +77,8 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 	private String clientID;
 	private String clientSecret;
 	private String serverURL;
-	//private boolean trustAllCert;
+
+	// private boolean trustAllCert;
 
 	@DataBoundConstructor
 	public PhabricatorSecurityRealm(String serverURL, String clientID,
@@ -86,7 +87,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 		this.serverURL = Util.fixEmptyAndTrim(serverURL);
 		this.clientID = Util.fixEmptyAndTrim(clientID);
 		this.clientSecret = Util.fixEmptyAndTrim(clientSecret);
-		//this.trustAllCert = trustAllCert;
+		// this.trustAllCert = trustAllCert;
 	}
 
 	public PhabricatorSecurityRealm() {
@@ -147,7 +148,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 				+ clientID + "&client_secret=" + clientSecret + "&code=" + code
 				+ "&grant_type=authorization_code&redirect_uri=" + rootUrl;
 
-        String content = getUrlContent(authUrl);
+		String content = getUrlContent(authUrl);
 		String accessToken;
 		try {
 			JSONObject jsonObject = new JSONObject(content);
@@ -162,11 +163,11 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken(
 					accessToken);
 			SecurityContextHolder.getContext().setAuthentication(auth);
-            PhabricatorUser user = auth.getUser();
-		    User u = User.current();
-            u.setFullName(user.getRealname());
-            u.addProperty(new Mailer.UserProperty(user.getEmail()));
-            // TODO: What is it for the u object ?
+			PhabricatorUser user = auth.getUser();
+			User u = User.current();
+			u.setFullName(user.getRealname());
+			u.addProperty(new Mailer.UserProperty(user.getEmail()));
+			// TODO: What is it for the u object ?
 		} else {
 			Log.info("Phabricator did not return an access token.");
 		}
@@ -179,23 +180,21 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 		return HttpResponses.redirectToContextRoot();
 	}
 
-    protected String getUrlContent(String url) throws IOException {
-    	/* FIXME
-		if (trustAllCert) {
-			LOGGER.log(Level.WARNING, "Trust all certificates");
-			Protocol easyhttps = new Protocol("https",
-					new EasySSLProtocolSocketFactory(), 443);
-			Protocol.registerProtocol("https", easyhttps);
-		}
-		*/
+	protected String getUrlContent(String url) throws IOException {
+		/*
+		 * FIXME if (trustAllCert) { LOGGER.log(Level.WARNING,
+		 * "Trust all certificates"); Protocol easyhttps = new Protocol("https",
+		 * new EasySSLProtocolSocketFactory(), 443);
+		 * Protocol.registerProtocol("https", easyhttps); }
+		 */
 		HttpGet httpGet = new HttpGet(url);
 		DefaultHttpClient httpclient = new DefaultHttpClient();
 		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
 		HttpEntity entity = response.getEntity();
 		String content = EntityUtils.toString(entity);
 		httpclient.getConnectionManager().shutdown();
-        return content;
-    }
+		return content;
+	}
 
 	@Override
 	public boolean allowsSignup() {
@@ -235,19 +234,19 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) {
-        PhabricatorAuthenticationToken authToken =
-            (PhabricatorAuthenticationToken) SecurityContextHolder
-            .getContext().getAuthentication();
-        if (authToken == null) {
-            throw new UsernameNotFoundException("Could not get auth token.");
-        }
+		PhabricatorAuthenticationToken authToken = (PhabricatorAuthenticationToken) SecurityContextHolder
+				.getContext().getAuthentication();
+		if (authToken == null) {
+			throw new UsernameNotFoundException("Could not get auth token.");
+		}
 
-        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
-        authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
+		List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+		authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
 
-        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username,
-                authorities.toArray(new GrantedAuthority[authorities.size()]));
-        
+		PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(
+				username, authorities.toArray(new GrantedAuthority[authorities
+						.size()]));
+
 		return userDetails;
 	}
 

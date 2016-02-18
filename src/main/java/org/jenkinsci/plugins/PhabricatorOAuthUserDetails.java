@@ -31,7 +31,8 @@ public class PhabricatorOAuthUserDetails extends User implements UserDetails {
 
 	private static final long serialVersionUID = 1L;
 
-	public PhabricatorOAuthUserDetails(String user, GrantedAuthority[] authorities) {
+	public PhabricatorOAuthUserDetails(String user,
+			GrantedAuthority[] authorities) {
 		super(user, "", true, true, true, true, authorities);
 	}
 
