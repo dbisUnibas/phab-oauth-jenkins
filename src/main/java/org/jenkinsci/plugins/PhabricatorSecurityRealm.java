@@ -24,8 +24,6 @@ THE SOFTWARE.
  */
 package org.jenkinsci.plugins;
 
-import org.jenkinsci.plugins.PhabricatorOAuthUserDetails;
-
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
@@ -34,28 +32,23 @@ import hudson.security.SecurityRealm;
 import hudson.tasks.Mailer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
-import org.acegisecurity.GrantedAuthority;
-
-import hudson.security.SecurityRealm;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.BadCredentialsException;
+import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.apache.commons.httpclient.contrib.ssl.EasySSLProtocolSocketFactory;
-import org.apache.commons.httpclient.protocol.Protocol;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -84,7 +77,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 	private String clientID;
 	private String clientSecret;
 	private String serverURL;
-	private boolean trustAllCert;
+	//private boolean trustAllCert;
 
 	@DataBoundConstructor
 	public PhabricatorSecurityRealm(String serverURL, String clientID,
@@ -93,7 +86,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 		this.serverURL = Util.fixEmptyAndTrim(serverURL);
 		this.clientID = Util.fixEmptyAndTrim(clientID);
 		this.clientSecret = Util.fixEmptyAndTrim(clientSecret);
-		this.trustAllCert = trustAllCert;
+		//this.trustAllCert = trustAllCert;
 	}
 
 	public PhabricatorSecurityRealm() {
@@ -154,13 +147,6 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 				+ clientID + "&client_secret=" + clientSecret + "&code=" + code
 				+ "&grant_type=authorization_code&redirect_uri=" + rootUrl;
 
-		if (trustAllCert) {
-			LOGGER.log(Level.WARNING, "Trust all certificates");
-			Protocol easyhttps = new Protocol("https",
-					new EasySSLProtocolSocketFactory(), 443);
-			Protocol.registerProtocol("https", easyhttps);
-		}
-
         String content = getUrlContent(authUrl);
 		String accessToken;
 		try {
@@ -194,6 +180,14 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 	}
 
     protected String getUrlContent(String url) throws IOException {
+    	/* FIXME
+		if (trustAllCert) {
+			LOGGER.log(Level.WARNING, "Trust all certificates");
+			Protocol easyhttps = new Protocol("https",
+					new EasySSLProtocolSocketFactory(), 443);
+			Protocol.registerProtocol("https", easyhttps);
+		}
+		*/
 		HttpGet httpGet = new HttpGet(url);
 		DefaultHttpClient httpclient = new DefaultHttpClient();
 		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
@@ -253,9 +247,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
         PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username,
                 authorities.toArray(new GrantedAuthority[authorities.size()]));
-        if (userDetails == null)
-            throw new UsernameNotFoundException("Unknown user: " + username);
-
+        
 		return userDetails;
 	}
 

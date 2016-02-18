@@ -92,7 +92,7 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
     protected PhabricatorUser authUsingToken() throws IOException {
         String serverURL = myRealm.getServerURL();
-        String result = myRealm.getUrlContent(serverURL + myRealm.PHAB_API 
+        String result = myRealm.getUrlContent(serverURL + PhabricatorSecurityRealm.PHAB_API 
                 + "?access_token=" + accessToken);
         PhabricatorUser user = null;
         try {
