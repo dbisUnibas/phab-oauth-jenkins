@@ -32,17 +32,16 @@ import hudson.security.SecurityRealm;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
 
+import org.acegisecurity.BadCredentialsException;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.AbstractAuthenticationToken;
-import org.acegisecurity.BadCredentialsException;
-
-import org.json.JSONObject;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
 
@@ -118,6 +117,11 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
 	public String getPrincipal() {
 		return this.userName;
+	}
+
+	@Override
+	public GrantedAuthority[] getAuthorities() {
+		return authorities.toArray(new GrantedAuthority[authorities.size()]);
 	}
 
 	private static final Logger LOGGER = Logger
