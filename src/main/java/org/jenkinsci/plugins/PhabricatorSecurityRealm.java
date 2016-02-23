@@ -24,8 +24,6 @@ THE SOFTWARE.
  */
 package org.jenkinsci.plugins;
 
-import org.jenkinsci.plugins.PhabricatorOAuthUserDetails;
-
 import hudson.Extension;
 import hudson.Util;
 import hudson.model.Descriptor;
@@ -34,28 +32,23 @@ import hudson.security.SecurityRealm;
 import hudson.tasks.Mailer;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
-import org.acegisecurity.GrantedAuthority;
-
-import hudson.security.SecurityRealm;
-
-import java.util.ArrayList;
-import java.util.List;
 
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.AuthenticationManager;
 import org.acegisecurity.BadCredentialsException;
+import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.context.SecurityContextHolder;
 import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
 import org.acegisecurity.userdetails.UserDetails;
 import org.acegisecurity.userdetails.UserDetailsService;
 import org.acegisecurity.userdetails.UsernameNotFoundException;
-import org.apache.commons.httpclient.contrib.ssl.EasySSLProtocolSocketFactory;
-import org.apache.commons.httpclient.protocol.Protocol;
 import org.apache.http.HttpEntity;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.impl.client.DefaultHttpClient;
@@ -84,7 +77,8 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 	private String clientID;
 	private String clientSecret;
 	private String serverURL;
-	private boolean trustAllCert;
+
+	// private boolean trustAllCert;
 
 	@DataBoundConstructor
 	public PhabricatorSecurityRealm(String serverURL, String clientID,
@@ -93,7 +87,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 		this.serverURL = Util.fixEmptyAndTrim(serverURL);
 		this.clientID = Util.fixEmptyAndTrim(clientID);
 		this.clientSecret = Util.fixEmptyAndTrim(clientSecret);
-		this.trustAllCert = trustAllCert;
+		// this.trustAllCert = trustAllCert;
 	}
 
 	public PhabricatorSecurityRealm() {
@@ -154,14 +148,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 				+ clientID + "&client_secret=" + clientSecret + "&code=" + code
 				+ "&grant_type=authorization_code&redirect_uri=" + rootUrl;
 
-		if (trustAllCert) {
-			LOGGER.log(Level.WARNING, "Trust all certificates");
-			Protocol easyhttps = new Protocol("https",
-					new EasySSLProtocolSocketFactory(), 443);
-			Protocol.registerProtocol("https", easyhttps);
-		}
-
-        String content = getUrlContent(authUrl);
+		String content = getUrlContent(authUrl);
 		String accessToken;
 		try {
 			JSONObject jsonObject = new JSONObject(content);
@@ -176,11 +163,11 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken(
 					accessToken);
 			SecurityContextHolder.getContext().setAuthentication(auth);
-            PhabricatorUser user = auth.getUser();
-		    User u = User.current();
-            u.setFullName(user.getRealname());
-            u.addProperty(new Mailer.UserProperty(user.getEmail()));
-            // TODO: What is it for the u object ?
+			PhabricatorUser user = auth.getUser();
+			User u = User.current();
+			u.setFullName(user.getRealname());
+			u.addProperty(new Mailer.UserProperty(user.getEmail()));
+			// TODO: What is it for the u object ?
 		} else {
 			Log.info("Phabricator did not return an access token.");
 		}
@@ -193,15 +180,21 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 		return HttpResponses.redirectToContextRoot();
 	}
 
-    protected String getUrlContent(String url) throws IOException {
+	protected String getUrlContent(String url) throws IOException {
+		/*
+		 * FIXME if (trustAllCert) { LOGGER.log(Level.WARNING,
+		 * "Trust all certificates"); Protocol easyhttps = new Protocol("https",
+		 * new EasySSLProtocolSocketFactory(), 443);
+		 * Protocol.registerProtocol("https", easyhttps); }
+		 */
 		HttpGet httpGet = new HttpGet(url);
 		DefaultHttpClient httpclient = new DefaultHttpClient();
 		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
 		HttpEntity entity = response.getEntity();
 		String content = EntityUtils.toString(entity);
 		httpclient.getConnectionManager().shutdown();
-        return content;
-    }
+		return content;
+	}
 
 	@Override
 	public boolean allowsSignup() {
@@ -241,20 +234,18 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
 	@Override
 	public UserDetails loadUserByUsername(String username) {
-        PhabricatorAuthenticationToken authToken =
-            (PhabricatorAuthenticationToken) SecurityContextHolder
-            .getContext().getAuthentication();
-        if (authToken == null) {
-            throw new UsernameNotFoundException("Could not get auth token.");
-        }
+		PhabricatorAuthenticationToken authToken = (PhabricatorAuthenticationToken) SecurityContextHolder
+				.getContext().getAuthentication();
+		if (authToken == null) {
+			throw new UsernameNotFoundException("Could not get auth token.");
+		}
 
-        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
-        authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
+		List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+		authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
 
-        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(username,
-                authorities.toArray(new GrantedAuthority[authorities.size()]));
-        if (userDetails == null)
-            throw new UsernameNotFoundException("Unknown user: " + username);
+		PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(
+				username, authorities.toArray(new GrantedAuthority[authorities
+						.size()]));
 
 		return userDetails;
 	}

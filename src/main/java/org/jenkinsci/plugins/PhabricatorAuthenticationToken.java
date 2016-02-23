@@ -32,24 +32,23 @@ import hudson.security.SecurityRealm;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.logging.Logger;
 import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import jenkins.model.Jenkins;
 
+import org.acegisecurity.BadCredentialsException;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.AbstractAuthenticationToken;
-import org.acegisecurity.BadCredentialsException;
-
-import org.json.JSONObject;
 import org.json.JSONException;
+import org.json.JSONObject;
 
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
 
 	private static final long serialVersionUID = 1L;
 	private final String accessToken;
 
-    private PhabricatorUser user;
+	private PhabricatorUser user;
 	private final String userName;
 	private PhabricatorSecurityRealm myRealm = null;
 
@@ -69,46 +68,44 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 			}
 		}
 
-        user = authUsingToken();
-        if (user == null){
-            throw new BadCredentialsException(
-                "Unexpected authentication type");
-        }
+		user = authUsingToken();
+		if (user == null) {
+			throw new BadCredentialsException("Unexpected authentication type");
+		}
 
-        userName = user.getUsername();
+		userName = user.getUsername();
 		setAuthenticated(true);
 	}
 
-    protected PhabricatorUser getUser() {
-        if (user == null && accessToken != null) {
-            try {
-                user = authUsingToken();
-            } catch(IOException e) {
-                LOGGER.log(Level.WARNING, e.getMessage());
-            }
-        }
-        return user;
-    }
+	protected PhabricatorUser getUser() {
+		if (user == null && accessToken != null) {
+			try {
+				user = authUsingToken();
+			} catch (IOException e) {
+				LOGGER.log(Level.WARNING, e.getMessage());
+			}
+		}
+		return user;
+	}
 
-    protected PhabricatorUser authUsingToken() throws IOException {
-        String serverURL = myRealm.getServerURL();
-        String result = myRealm.getUrlContent(serverURL + myRealm.PHAB_API 
-                + "?access_token=" + accessToken);
-        PhabricatorUser user = null;
-        try {
-            JSONObject jsonObject = new JSONObject(result);
-            JSONObject jsonResult = jsonObject.getJSONObject("result");
-            user = new PhabricatorUser(
-                jsonResult.getString("userName"),
-                jsonResult.getString("realName"),
-                jsonResult.getString("primaryEmail"),
-                jsonResult.getString("image")
-            );
-        } catch(JSONException e) {
-            LOGGER.log(Level.WARNING, e.getMessage());
-        }
-        return user;
-    }
+	protected PhabricatorUser authUsingToken() throws IOException {
+		String serverURL = myRealm.getServerURL();
+		String result = myRealm.getUrlContent(serverURL
+				+ PhabricatorSecurityRealm.PHAB_API + "?access_token="
+				+ accessToken);
+		PhabricatorUser user = null;
+		try {
+			JSONObject jsonObject = new JSONObject(result);
+			JSONObject jsonResult = jsonObject.getJSONObject("result");
+			user = new PhabricatorUser(jsonResult.getString("userName"),
+					jsonResult.getString("realName"),
+					jsonResult.getString("primaryEmail"),
+					jsonResult.getString("image"));
+		} catch (JSONException e) {
+			LOGGER.log(Level.WARNING, e.getMessage());
+		}
+		return user;
+	}
 
 	public String getAccessToken() {
 		return accessToken;
@@ -120,6 +117,11 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
 	public String getPrincipal() {
 		return this.userName;
+	}
+
+	@Override
+	public GrantedAuthority[] getAuthorities() {
+		return authorities.toArray(new GrantedAuthority[authorities.size()]);
 	}
 
 	private static final Logger LOGGER = Logger
