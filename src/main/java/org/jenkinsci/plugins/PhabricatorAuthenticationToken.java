@@ -89,6 +89,7 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 	}
 
 	protected PhabricatorUser authUsingToken() throws IOException {
+        LOGGER.log(Level.WARNING, "Login using token");
 		String serverURL = myRealm.getServerURL();
 		String result = myRealm.getUrlContent(serverURL
 				+ PhabricatorSecurityRealm.PHAB_API + "?access_token="
