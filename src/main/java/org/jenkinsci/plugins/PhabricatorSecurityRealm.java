@@ -240,6 +240,10 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			throw new UsernameNotFoundException("Could not get auth token.");
 		}
 
+		if (username == null) {
+			throw new UsernameNotFoundException("Could not get username.");
+		}
+
 		List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
 		authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
 

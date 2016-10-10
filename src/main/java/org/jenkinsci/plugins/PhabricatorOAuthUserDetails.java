@@ -33,7 +33,7 @@ public class PhabricatorOAuthUserDetails extends User implements UserDetails {
 
 	public PhabricatorOAuthUserDetails(String user,
 			GrantedAuthority[] authorities) {
-		super(user, "", true, true, true, true, authorities);
+		super(user, "nopassword", true, true, true, true, authorities);
 	}
 
 }
