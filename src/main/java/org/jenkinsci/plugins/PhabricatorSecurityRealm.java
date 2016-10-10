@@ -66,7 +66,7 @@ import org.springframework.dao.DataAccessException;
 
 public class PhabricatorSecurityRealm extends SecurityRealm {
 
-	private static final String OAUTH_SCOPES = "whoami";
+	private static final String OAUTH_SCOPES = "";
 	private static final String PHAB_OAUTH = "oauthserver";
 	protected static final String PHAB_API = "api/user.whoami";
 	private static final String REFERER_ATTRIBUTE = PhabricatorSecurityRealm.class
