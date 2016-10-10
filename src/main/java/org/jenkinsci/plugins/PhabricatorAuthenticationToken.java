@@ -98,10 +98,15 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 		try {
 			JSONObject jsonObject = new JSONObject(result);
 			JSONObject jsonResult = jsonObject.getJSONObject("result");
-			user = new PhabricatorUser(jsonResult.getString("userName"),
-					jsonResult.getString("realName"),
-					jsonResult.getString("primaryEmail"),
-					jsonResult.getString("image"));
+        
+            String userName = jsonResult.getString("userName");
+            String realName = jsonResult.getString("realName");
+            String primaryEmail = jsonResult.getString("primaryEmail");
+            String image = jsonResult.getString("image");
+
+            if (primaryEmail != null && userName != null) {
+                user = new PhabricatorUser(userName, realName, primaryEmail, image);
+            }
 		} catch (JSONException e) {
 			LOGGER.log(Level.WARNING, e.getMessage());
 		}
