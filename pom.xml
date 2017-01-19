@@ -9,7 +9,7 @@
 
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>phab-oauth</artifactId>
-    <version>0.37</version>
+    <version>0.38</version>
     <name>Phabricator Authentication Plugin</name>
     <description>TODO</description>
     <packaging>hpi</packaging>
