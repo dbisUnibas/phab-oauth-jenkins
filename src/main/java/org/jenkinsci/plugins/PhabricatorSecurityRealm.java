@@ -240,7 +240,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 			throw new UsernameNotFoundException("Could not get auth token.");
 		}
 
-		if (username == null) {
+		if (username == null || "".equals(username)) {
 			throw new UsernameNotFoundException("Could not get username.");
 		}
 
