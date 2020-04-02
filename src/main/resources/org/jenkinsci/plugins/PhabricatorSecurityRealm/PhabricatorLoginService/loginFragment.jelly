@@ -56,26 +56,34 @@ THE SOFTWARE.
         <script>
           // Hiding the default login form behind "More options"
           //
-          var loginForm = document.forms['login'];
+          var loginForm = document.forms['login'];    // geht the 'form' responsible for username/password
           var outerElement = loginForm.parentElement;
           var loginFormDiv = document.createElement('div');
           var moreOptionsA = document.createElement('a');
 
-          loginForm.style.display='none';
+          if(document.location.href.indexOf('/loginError') > -1) {
+            // Login Error Page: do not hide, but only move the input fields
+            // Hide the "More options" link instead
+            loginForm.style.display='initial';
+            moreOptionsA.style.display='none';
+          } else {
+            loginForm.style.display='none';
+          }
 
           loginFormDiv.id='login-form-holder';
 
+          // Configuration of the "More options" link
           moreOptionsA.id='js-more-options';
           moreOptionsA.innerText="${%More options}";
           moreOptionsA.onclick=function() {
-            document.forms['login'].style.display ='initial';
-            document.getElementById('js-more-options').style.display='none';
+            document.forms['login'].style.display ='initial';    // display the 'form'
+            document.getElementById('js-more-options').style.display='none';    // hide the "More options" link
             return false;
           };
 
-          loginFormDiv.appendChild(moreOptionsA);
-          loginFormDiv.appendChild(loginForm);
-          outerElement.appendChild(loginFormDiv);
+          loginFormDiv.appendChild(moreOptionsA);    // add the "More options" link
+          loginFormDiv.appendChild(loginForm);       // and then the 'form' to the 'div'
+          outerElement.appendChild(loginFormDiv);    // then the 'div', which basically moves the 'form'
         </script>
       </form>
     </div>
