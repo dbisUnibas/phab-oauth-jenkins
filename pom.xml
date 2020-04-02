@@ -10,8 +10,8 @@
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>phab-oauth</artifactId>
     <version>0.39</version>
-    <name>Phabricator Authentication Plugin</name>
-    <description>TODO</description>
+    <name>DBIS Jenkins Plugin "Phabricator OAuth"</name>
+    <description>Phabricator Authentication for Jenkins</description>
     <packaging>hpi</packaging>
 
     <url></url>
@@ -84,6 +84,12 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.sonarsource.scanner.maven</groupId>
+                <artifactId>sonar-maven-plugin</artifactId>
+                <version>3.4.1.1168</version>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
