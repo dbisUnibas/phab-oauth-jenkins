@@ -6,9 +6,6 @@
     <l:main-panel>
       <h1>${%Users}</h1>
       <p>${%blurb}</p>
-<div>
-    This is the authentication plugin using Phabricator OAuth.
-</div>
       <table class="sortable pane bigtable" id="people">
         <tr>
           <th style="width:32px"/>
@@ -30,6 +27,9 @@
           </tr>
         </j:forEach>
       </table>
+      <div>
+        <span style="padding-top: 3em; font-size: xx-small; color: #bfbfbf;">Phabricator OAuth Plugin</span>
+      </div>
     </l:main-panel>
   </l:layout>
 </j:jelly>
