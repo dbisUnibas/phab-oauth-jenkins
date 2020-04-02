@@ -27,7 +27,7 @@ THE SOFTWARE.
         <input type="submit" value="${%Login with Phabricator}" class="submit-button" id='login-with-phabricator'/>
         <style>
           #login-with-phabricator {
-            background: url('${resURL}/phabricator-assets/phabricator.svg') 10px center no-repeat !important;
+            background: url('${resURL}/phabricator-assets/phabricator.svg') 20px center no-repeat !important;
             background-color: rgb(32, 80, 129) !important;
             background-size: 30px !important;
             color: #FFFFFF !important;
