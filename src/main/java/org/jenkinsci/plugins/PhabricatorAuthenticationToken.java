@@ -44,10 +44,11 @@ import org.json.JSONObject;
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
 
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger( PhabricatorAuthenticationToken.class.getName() );
 
     private final String accessToken;
 
-    private PhabricatorUser user;
+    private final PhabricatorUser user;
     private final String userName;
 
     private final List<GrantedAuthority> authorities = new ArrayList<>();
@@ -70,18 +71,6 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
     }
 
 
-    protected PhabricatorUser getUser() {
-        if ( user == null && accessToken != null ) {
-            try {
-                user = authUsingToken();
-            } catch ( IOException e ) {
-                LOGGER.log( Level.WARNING, e.getMessage() );
-            }
-        }
-        return user;
-    }
-
-
     protected PhabricatorUser authUsingToken() throws IOException {
         LOGGER.log( Level.WARNING, "Login using token" );
 
@@ -92,30 +81,26 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
         } else {
             throw new IllegalStateException( "jenkins.getSecurityRealm() is not PhabricatorSecurityRealm" );
         }
-        final String result = phabricator.getUrlContent( new HttpGet( phabricator.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken ) );
+        final String requestUri = phabricator.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken;
+        final String result = phabricator.getUrlContent( new HttpGet( requestUri ) );
 
-        PhabricatorUser user = null;
+        PhabricatorUser phabricatorUser = null;
         try {
-            JSONObject jsonObject = new JSONObject( result );
-            JSONObject jsonResult = jsonObject.getJSONObject( "result" );
+            final JSONObject jsonObject = new JSONObject( result );
+            final JSONObject jsonResult = jsonObject.getJSONObject( "result" );
 
-            String userName = jsonResult.getString( "userName" );
-            String realName = jsonResult.getString( "realName" );
-            String primaryEmail = jsonResult.getString( "primaryEmail" );
-            String image = jsonResult.getString( "image" );
+            final String userName = jsonResult.getString( "userName" );
+            final String realName = jsonResult.getString( "realName" );
+            final String primaryEmail = jsonResult.getString( "primaryEmail" );
+            final String image = jsonResult.getString( "image" );
 
-            if ( primaryEmail != null && userName != null ) {
-                user = new PhabricatorUser( userName, realName, primaryEmail, image );
+            if ( userName != null && primaryEmail != null ) {
+                phabricatorUser = new PhabricatorUser( userName, realName, primaryEmail, image );
             }
         } catch ( JSONException e ) {
             LOGGER.log( Level.WARNING, e.getMessage() );
         }
-        return user;
-    }
-
-
-    public String getAccessToken() {
-        return accessToken;
+        return phabricatorUser;
     }
 
 
@@ -135,6 +120,12 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
     }
 
 
-    private static final Logger LOGGER = Logger.getLogger( PhabricatorAuthenticationToken.class.getName() );
+    public String getAccessToken() {
+        return accessToken;
+    }
 
+
+    protected PhabricatorUser getUser() {
+        return user;
+    }
 }
