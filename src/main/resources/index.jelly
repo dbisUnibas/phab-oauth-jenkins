@@ -1,4 +1,4 @@
-
+<?jelly escape-by-default='true'?>
 <div>
-    This is the an authentication plugin using Phabricator OAuth.
+  This plugin enables authentication via Phabricator.
 </div>

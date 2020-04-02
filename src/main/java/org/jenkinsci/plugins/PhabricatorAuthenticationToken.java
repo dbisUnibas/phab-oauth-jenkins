@@ -36,6 +36,7 @@ import jenkins.model.Jenkins;
 import org.acegisecurity.BadCredentialsException;
 import org.acegisecurity.GrantedAuthority;
 import org.acegisecurity.providers.AbstractAuthenticationToken;
+import org.apache.http.client.methods.HttpGet;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -88,8 +89,9 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
     protected PhabricatorUser authUsingToken() throws IOException {
         LOGGER.log( Level.WARNING, "Login using token" );
-        String serverURL = myRealm.getServerURL();
-        String result = myRealm.getUrlContent( serverURL + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken );
+
+        final String result = myRealm.getUrlContent( new HttpGet( myRealm.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken ) );
+
         PhabricatorUser user = null;
         try {
             JSONObject jsonObject = new JSONObject( result );
