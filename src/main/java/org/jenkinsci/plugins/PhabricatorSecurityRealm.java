@@ -93,6 +93,7 @@ import org.kohsuke.stapler.Header;
 import org.kohsuke.stapler.HttpRedirect;
 import org.kohsuke.stapler.HttpResponse;
 import org.kohsuke.stapler.HttpResponses;
+import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
@@ -286,20 +287,29 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
             LOGGER.log( Level.WARNING, "accessToken FOUND=" + accessToken );
         } catch ( JSONException e ) {
             LOGGER.log( Level.WARNING, "accessToken not found=" + e.getMessage() );
+            LOGGER.log( Level.WARNING, "Request was: " + getServerURL() + PHAB_OAUTH + "/token/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.name() ) );
+            LOGGER.log( Level.WARNING, "Response was: " + content );
             accessToken = null;
         }
 
         if ( accessToken != null && accessToken.trim().length() > 0 ) {
             final PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( accessToken );
-            SecurityContextHolder.getContext().setAuthentication( auth );
+            SecurityContextHolder.getContext().setAuthentication( auth ); // This sets the Jenkins User ID to the username used in Phabricator
             PhabricatorUser phabricatorUser = auth.getUser();
 
-            User jenkinsUser = User.current();
+            // prevent session fixation attack
+            Stapler.getCurrentRequest().getSession().invalidate();
+            Stapler.getCurrentRequest().getSession();
+
+            User jenkinsUser = User.current(); // == User.get( phabricatorUser.getUsername() ) since the username has already been set according to the one of Phabricator
             if ( jenkinsUser == null ) {
+                // This should never happen. We got a username from Phabricator and if this user did not already exist in Jenkins it was created by invoking `User.current()`. It can be `null` if and only if no `Authentication` is set in the `SecurityContextHolder`.
                 throw new IllegalStateException( "jenkinsUser == null" );
             }
             jenkinsUser.setFullName( phabricatorUser.getRealname() );
             jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
+
+            SecurityListener.fireLoggedIn( jenkinsUser.getId() );
         } else {
             Log.info( "Phabricator did not return an access token." );
         }
