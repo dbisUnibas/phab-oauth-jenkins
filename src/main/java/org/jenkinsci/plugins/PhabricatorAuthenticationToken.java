@@ -26,7 +26,6 @@
 package org.jenkinsci.plugins;
 
 
-import com.google.inject.Inject;
 import hudson.security.SecurityRealm;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,9 +49,6 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
     private PhabricatorUser user;
     private final String userName;
-
-    @Inject
-    private transient Jenkins jenkins;
 
     private final List<GrantedAuthority> authorities = new ArrayList<>();
 
@@ -89,6 +85,7 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
     protected PhabricatorUser authUsingToken() throws IOException {
         LOGGER.log( Level.WARNING, "Login using token" );
 
+        final Jenkins jenkins = Jenkins.getInstance();
         final PhabricatorSecurityRealm phabricator;
         if ( jenkins.getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
             phabricator = (PhabricatorSecurityRealm) jenkins.getSecurityRealm();

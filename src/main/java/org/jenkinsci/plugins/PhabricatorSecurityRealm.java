@@ -145,9 +145,6 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     private String clientSecret;
     private String serverURL; // no slash at the end
 
-    @Inject
-    private transient Jenkins jenkins;
-
 
     public PhabricatorSecurityRealm() {
         if ( !allowsSignup() && !hasSomeUser() ) {
@@ -269,7 +266,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
             return HttpResponses.redirectToContextRoot();
         }
 
-        String redirectUrl = jenkins.getRootUrl();
+        String redirectUrl = Jenkins.getInstance().getRootUrl();
         redirectUrl += (redirectUrl.endsWith( "/" ) ? "" : "/") + "securityRealm/finishLogin";
 
         List<NameValuePair> parameters = new ArrayList<>();
@@ -404,19 +401,19 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     @Nonnull
     @Override
     public ACL getACL() {
-        return jenkins.getACL();
+        return Jenkins.getInstance().getACL();
     }
 
 
     @Override
     public void checkPermission( @Nonnull Permission permission ) throws AccessDeniedException {
-        jenkins.checkPermission( permission );
+        Jenkins.getInstance().checkPermission( permission );
     }
 
 
     @Override
     public boolean hasPermission( @Nonnull Permission permission ) {
-        return jenkins.hasPermission( permission );
+        return Jenkins.getInstance().hasPermission( permission );
     }
 
 
@@ -549,7 +546,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
         if ( isMailerPluginPresent() ) {
             try {
                 // legacy hack. mail support has moved out to a separate plugin
-                Class<?> up = jenkins.pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+                Class<?> up = Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
                 Constructor<?> c = up.getDeclaredConstructor( String.class );
                 user.addProperty( (UserProperty) c.newInstance( si.email ) );
             } catch ( ReflectiveOperationException e ) {
@@ -565,7 +562,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     public boolean isMailerPluginPresent() {
         try {
             // mail support has moved to a separate plugin
-            return null != jenkins.pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+            return null != Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
         } catch ( ClassNotFoundException e ) {
             LOGGER.finer( "Mailer plugin not present" );
         }
@@ -616,7 +613,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
      * Try to make this user a super-user
      */
     private void tryToMakeAdmin( User u ) {
-        AuthorizationStrategy as = jenkins.getAuthorizationStrategy();
+        AuthorizationStrategy as = Jenkins.getInstance().getAuthorizationStrategy();
         for ( PermissionAdder adder : ExtensionList.lookup( PermissionAdder.class ) ) {
             if ( adder.add( as, u, Jenkins.ADMINISTER ) ) {
                 return;
