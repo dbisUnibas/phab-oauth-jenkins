@@ -35,6 +35,7 @@ import hudson.security.HudsonPrivateSecurityRealm.SignupInfo;
 import hudson.security.Permission;
 import hudson.security.PermissionAdder;
 import hudson.security.SecurityRealm;
+import hudson.security.UserMayOrMayNotExistException;
 import hudson.tasks.Mailer;
 import hudson.util.PluginServletFilter;
 import java.io.IOException;
@@ -372,7 +373,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
 
         Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
         if ( authToken == null ) {
-            throw new UsernameNotFoundException( "Could not get auth token." );
+            throw new UserMayOrMayNotExistException( "Could not get auth token." );
         }
 
         if ( username == null || username.isEmpty() ) {
