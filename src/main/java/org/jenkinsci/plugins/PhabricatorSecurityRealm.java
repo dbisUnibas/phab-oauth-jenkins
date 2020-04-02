@@ -1,28 +1,30 @@
 /**
- The MIT License
-
-Copyright (c) 2011 Michael O'Cleirigh
-Copyright (c) 2016 Jean-Baptiste Aubort
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in
-all copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-THE SOFTWARE.
+ * The MIT License
+ *
+ * Copyright (c) 2011 Michael O'Cleirigh
+ * Copyright (c) 2016 Jean-Baptiste Aubort
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+ * THE SOFTWARE.
  */
+
 package org.jenkinsci.plugins;
+
 
 import hudson.Extension;
 import hudson.Util;
@@ -30,15 +32,12 @@ import hudson.model.Descriptor;
 import hudson.model.User;
 import hudson.security.SecurityRealm;
 import hudson.tasks.Mailer;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
 import jenkins.model.Jenkins;
-
 import org.acegisecurity.Authentication;
 import org.acegisecurity.AuthenticationException;
 import org.acegisecurity.AuthenticationManager;
@@ -64,216 +63,225 @@ import org.kohsuke.stapler.HttpResponses;
 import org.kohsuke.stapler.StaplerRequest;
 import org.springframework.dao.DataAccessException;
 
+
 public class PhabricatorSecurityRealm extends SecurityRealm {
 
-	private static final String OAUTH_SCOPES = "";
-	private static final String PHAB_OAUTH = "oauthserver";
-	protected static final String PHAB_API = "api/user.whoami";
-	private static final String REFERER_ATTRIBUTE = PhabricatorSecurityRealm.class
-			.getName() + ".referer";
-	private static final Logger LOGGER = Logger
-			.getLogger(PhabricatorSecurityRealm.class.getName());
+    private static final String OAUTH_SCOPES = "";
+    private static final String PHAB_OAUTH = "/oauthserver";
+    protected static final String PHAB_API_USER_WHOAMI = "/api/user.whoami";
+    private static final String REFERER_ATTRIBUTE = PhabricatorSecurityRealm.class.getName() + ".referer";
+    private static final Logger LOGGER = Logger.getLogger( PhabricatorSecurityRealm.class.getName() );
 
-	private String clientID;
-	private String clientSecret;
-	private String serverURL;
+    private String clientID;
+    private String clientSecret;
+    private String serverURL; // no slash at the end
 
-	// private boolean trustAllCert;
 
-	@DataBoundConstructor
-	public PhabricatorSecurityRealm(String serverURL, String clientID,
-			String clientSecret, boolean trustAllCert) {
-		super();
-		this.serverURL = Util.fixEmptyAndTrim(serverURL);
-		this.clientID = Util.fixEmptyAndTrim(clientID);
-		this.clientSecret = Util.fixEmptyAndTrim(clientSecret);
-		// this.trustAllCert = trustAllCert;
-	}
+    @DataBoundConstructor
+    public PhabricatorSecurityRealm( String serverURL, String clientID, String clientSecret ) {
+        super();
+        this.serverURL = fixServerUrl( Util.fixEmptyAndTrim( serverURL ) );
+        this.clientID = Util.fixEmptyAndTrim( clientID );
+        this.clientSecret = Util.fixEmptyAndTrim( clientSecret );
+    }
 
-	public PhabricatorSecurityRealm() {
-		super();
-		LOGGER.log(Level.FINE, "PhabricatorSecurityRealm()");
-	}
 
-	public String getClientID() {
-		return clientID;
-	}
+    private String fixServerUrl( String serverUrl ) {
+        if ( serverUrl == null ) {
+            return "";
+        }
 
-	public void setClientID(String clientID) {
-		this.clientID = clientID;
-	}
+        while ( serverUrl.endsWith( "/" ) ) {
+            serverUrl = serverURL.substring( 0, serverUrl.length() - 1 );
+        }
+        return serverUrl;
+    }
 
-	public String getClientSecret() {
-		return clientSecret;
-	}
 
-	public void setClientSecret(String clientSecret) {
-		this.clientSecret = clientSecret;
-	}
+    public PhabricatorSecurityRealm() {
+        super();
+        LOGGER.log( Level.FINE, "PhabricatorSecurityRealm()" );
+    }
 
-	public String getServerURL() {
-		return serverURL;
-	}
 
-	public void setServerURL(String serverURL) {
-		this.serverURL = serverURL;
-	}
+    public String getClientID() {
+        return clientID;
+    }
 
-	@Override
-	public String getLoginUrl() {
-		return "securityRealm/commenceLogin";
-	}
 
-	public HttpResponse doCommenceLogin(StaplerRequest request,
-			@Header("Referer") final String referer) throws IOException {
-		LOGGER.log(Level.WARNING, "doCommenceLogin");
-		request.getSession().setAttribute(REFERER_ATTRIBUTE, referer);
-		return new HttpRedirect(serverURL + PHAB_OAUTH + "/auth/?client_id="
-				+ clientID + "&response_type=code&scope=" + OAUTH_SCOPES);
-	}
+    public void setClientID( String clientID ) {
+        this.clientID = clientID;
+    }
 
-	public HttpResponse doFinishLogin(StaplerRequest request)
-			throws IOException {
-		String code = request.getParameter("code");
 
-		if (code == null || code.trim().length() == 0) {
-			Log.info("doFinishLogin: missing code.");
-			return HttpResponses.redirectToContextRoot();
-		}
+    public String getClientSecret() {
+        return clientSecret;
+    }
 
-		String rootUrl = Jenkins.getInstance().getRootUrl()
-				+ "securityRealm/finishLogin";
 
-		String authUrl = serverURL + PHAB_OAUTH + "/token/?client_id="
-				+ clientID + "&client_secret=" + clientSecret + "&code=" + code
-				+ "&grant_type=authorization_code&redirect_uri=" + rootUrl;
+    public void setClientSecret( String clientSecret ) {
+        this.clientSecret = clientSecret;
+    }
 
-		String content = getUrlContent(authUrl);
-		String accessToken;
-		try {
-			JSONObject jsonObject = new JSONObject(content);
-			accessToken = jsonObject.getString("access_token");
-			LOGGER.log(Level.WARNING, "accessToken FOUND=" + accessToken);
-		} catch (JSONException e) {
-			LOGGER.log(Level.WARNING, "accessToken not found=" + e.getMessage());
-			accessToken = null;
-		}
 
-		if (accessToken != null && accessToken.trim().length() > 0) {
-			PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken(
-					accessToken);
-			SecurityContextHolder.getContext().setAuthentication(auth);
-			PhabricatorUser user = auth.getUser();
-			User u = User.current();
-			u.setFullName(user.getRealname());
-			u.addProperty(new Mailer.UserProperty(user.getEmail()));
-			// TODO: What is it for the u object ?
-		} else {
-			Log.info("Phabricator did not return an access token.");
-		}
+    public String getServerURL() {
+        return serverURL;
+    }
 
-		String referer = (String) request.getSession().getAttribute(
-				REFERER_ATTRIBUTE);
-		if (referer != null)
-			return HttpResponses.redirectTo(referer);
 
-		return HttpResponses.redirectToContextRoot();
-	}
+    public void setServerURL( String serverURL ) {
+        this.serverURL = fixServerUrl( serverURL );
+    }
 
-	protected String getUrlContent(String url) throws IOException {
-		/*
-		 * FIXME if (trustAllCert) { LOGGER.log(Level.WARNING,
-		 * "Trust all certificates"); Protocol easyhttps = new Protocol("https",
-		 * new EasySSLProtocolSocketFactory(), 443);
-		 * Protocol.registerProtocol("https", easyhttps); }
-		 */
-		HttpGet httpGet = new HttpGet(url);
-		DefaultHttpClient httpclient = new DefaultHttpClient();
-		org.apache.http.HttpResponse response = httpclient.execute(httpGet);
-		HttpEntity entity = response.getEntity();
-		String content = EntityUtils.toString(entity);
-		httpclient.getConnectionManager().shutdown();
-		return content;
-	}
 
-	@Override
-	public boolean allowsSignup() {
-		return false;
-	}
+    @Override
+    public String getLoginUrl() {
+        return "securityRealm/commenceLogin";
+    }
 
-	@Override
-	public SecurityComponents createSecurityComponents() {
-		return new SecurityComponents(new AuthenticationManager() {
 
-			public Authentication authenticate(Authentication authentication)
-					throws AuthenticationException {
-				if (authentication instanceof PhabricatorAuthenticationToken)
-					return authentication;
-				if (authentication instanceof UsernamePasswordAuthenticationToken)
-					try {
-						UsernamePasswordAuthenticationToken token = (UsernamePasswordAuthenticationToken) authentication;
-						PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken(
-								token.getCredentials().toString());
-						SecurityContextHolder.getContext().setAuthentication(
-								auth);
-						return auth;
-					} catch (IOException e) {
-						throw new RuntimeException(e);
-					}
-				throw new BadCredentialsException(
-						"Unexpected authentication type: " + authentication);
-			}
-		}, new UserDetailsService() {
-			public UserDetails loadUserByUsername(String username)
-					throws UsernameNotFoundException, DataAccessException {
-				return PhabricatorSecurityRealm.this
-						.loadUserByUsername(username);
-			}
-		});
-	}
+    public HttpResponse doCommenceLogin( StaplerRequest request, @Header("Referer") final String referer ) throws IOException {
+        LOGGER.log( Level.WARNING, "doCommenceLogin" );
+        request.getSession().setAttribute( REFERER_ATTRIBUTE, referer );
+        return new HttpRedirect( getServerURL() + PHAB_OAUTH + "/auth/?client_id=" + clientID + "&response_type=code&scope=" + OAUTH_SCOPES );
+    }
 
-	@Override
-	public UserDetails loadUserByUsername(String username) {
-		Authentication authToken = SecurityContextHolder.
-            getContext().getAuthentication();
-		if (authToken == null) {
-			throw new UsernameNotFoundException("Could not get auth token.");
-		}
 
-		if (username == null || "".equals(username)) {
-			throw new UsernameNotFoundException("Could not get username.");
-		}
+    public HttpResponse doFinishLogin( StaplerRequest request ) throws IOException {
+        String code = request.getParameter( "code" );
 
-		List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
-		authorities.add(SecurityRealm.AUTHENTICATED_AUTHORITY);
+        if ( code == null || code.trim().length() == 0 ) {
+            Log.info( "doFinishLogin: missing code." );
+            return HttpResponses.redirectToContextRoot();
+        }
 
-		PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails(
-				username, authorities.toArray(new GrantedAuthority[authorities
-						.size()]));
+        String rootUrl = Jenkins.getInstance().getRootUrl();
+        rootUrl += (rootUrl.endsWith( "/" ) ? "" : "/") + "securityRealm/finishLogin";
 
-		return userDetails;
-	}
+        String authUrl = getServerURL() + PHAB_OAUTH + "/token/?client_id=" + clientID + "&client_secret=" + clientSecret + "&code=" + code + "&grant_type=authorization_code&redirect_uri=" + rootUrl;
 
-	@Extension
-	public static final class DescriptorImpl extends Descriptor<SecurityRealm> {
+        String content = getUrlContent( authUrl );
+        String accessToken;
+        try {
+            JSONObject jsonObject = new JSONObject( content );
+            accessToken = jsonObject.getString( "access_token" );
+            LOGGER.log( Level.WARNING, "accessToken FOUND=" + accessToken );
+        } catch ( JSONException e ) {
+            LOGGER.log( Level.WARNING, "accessToken not found=" + e.getMessage() );
+            accessToken = null;
+        }
 
-		@Override
-		public String getHelpFile() {
-			return "/plugin/phab-oauth/help/help-security-realm.html";
-		}
+        if ( accessToken != null && accessToken.trim().length() > 0 ) {
+            PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( accessToken );
+            SecurityContextHolder.getContext().setAuthentication( auth );
+            PhabricatorUser phabricatorUser = auth.getUser();
+            User jenkinsUser = User.current();
+            jenkinsUser.setFullName( phabricatorUser.getRealname() );
+            jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
+            // TODO: What is it for the jenkinsUser object ?
+        } else {
+            Log.info( "Phabricator did not return an access token." );
+        }
 
-		@Override
-		public String getDisplayName() {
-			return "Phabricator OAuth Plugin";
-		}
+        String referer = (String) request.getSession().getAttribute( REFERER_ATTRIBUTE );
+        if ( referer != null ) {
+            return HttpResponses.redirectTo( referer );
+        }
 
-		public DescriptorImpl() {
-			super();
-		}
+        return HttpResponses.redirectToContextRoot();
+    }
 
-		public DescriptorImpl(Class<? extends SecurityRealm> clazz) {
-			super(clazz);
-		}
-	}
+
+    protected String getUrlContent( String url ) throws IOException {
+        HttpGet httpGet = new HttpGet( url );
+        DefaultHttpClient httpclient = new DefaultHttpClient();
+        org.apache.http.HttpResponse response = httpclient.execute( httpGet );
+        HttpEntity entity = response.getEntity();
+        String content = EntityUtils.toString( entity );
+        httpclient.getConnectionManager().shutdown();
+        return content;
+    }
+
+
+    @Override
+    public boolean allowsSignup() {
+        return false;
+    }
+
+
+    @Override
+    public SecurityComponents createSecurityComponents() {
+        return new SecurityComponents( new AuthenticationManager() {
+
+            public Authentication authenticate( Authentication authentication )
+                    throws AuthenticationException {
+                if ( authentication instanceof PhabricatorAuthenticationToken ) {
+                    return authentication;
+                }
+                if ( authentication instanceof UsernamePasswordAuthenticationToken ) {
+                    try {
+                        UsernamePasswordAuthenticationToken token = (UsernamePasswordAuthenticationToken) authentication;
+                        PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( token.getCredentials().toString() );
+                        SecurityContextHolder.getContext().setAuthentication( auth );
+                        return auth;
+                    } catch ( IOException e ) {
+                        throw new RuntimeException( e );
+                    }
+                }
+                throw new BadCredentialsException( "Unexpected authentication type: " + authentication );
+            }
+        }, new UserDetailsService() {
+            public UserDetails loadUserByUsername( String username )
+                    throws UsernameNotFoundException, DataAccessException {
+                return PhabricatorSecurityRealm.this.loadUserByUsername( username );
+            }
+        } );
+    }
+
+
+    @Override
+    public UserDetails loadUserByUsername( String username ) {
+        Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
+        if ( authToken == null ) {
+            throw new UsernameNotFoundException( "Could not get auth token." );
+        }
+
+        if ( username == null || username.isEmpty() ) {
+            throw new UsernameNotFoundException( "Could not get username." );
+        }
+
+        List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+        authorities.add( SecurityRealm.AUTHENTICATED_AUTHORITY );
+
+        PhabricatorOAuthUserDetails userDetails = new PhabricatorOAuthUserDetails( username, authorities.toArray( new GrantedAuthority[authorities.size()] ) );
+
+        return userDetails;
+    }
+
+
+    @Extension
+    public static final class DescriptorImpl extends Descriptor<SecurityRealm> {
+
+        @Override
+        public String getHelpFile() {
+            return "/plugin/phab-oauth/help/help-security-realm.html";
+        }
+
+
+        @Override
+        public String getDisplayName() {
+            return "Phabricator OAuth Plugin";
+        }
+
+
+        public DescriptorImpl() {
+            super();
+        }
+
+
+        public DescriptorImpl( Class<? extends SecurityRealm> clazz ) {
+            super( clazz );
+        }
+    }
 
 }

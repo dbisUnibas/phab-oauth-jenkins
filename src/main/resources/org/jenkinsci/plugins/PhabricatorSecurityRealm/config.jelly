@@ -16,10 +16,5 @@
             <f:textbox default="${descriptor.getClientSecret()}" />
         </f:entry>
 
-        <f:entry title="Trust all SSL certificate" field="trustAllCert">
-            <f:checkbox />
-        </f:entry>
-        
-
     </f:section>
 </j:jelly>
