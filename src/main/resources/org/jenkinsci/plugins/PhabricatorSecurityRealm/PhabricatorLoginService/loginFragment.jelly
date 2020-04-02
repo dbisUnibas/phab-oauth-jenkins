@@ -26,13 +26,13 @@ THE SOFTWARE.
         <input type="hidden" name="from" value="${request.getParameter('from')}"/>
         <input type="submit" value="${%Login with Phabricator}" class="submit-button" id='login-with-phabricator'/>
         <style>
-          #login-with-phabricator button {
-            padding-left: 30px !important;
-            background: url('${resURL}/phabricator-assets/phabricator.svg') 5px center no-repeat !important;
-            background-size: 20px !important;
+          #login-with-phabricator {
+            background: url('${resURL}/phabricator-assets/phabricator.svg') 10px center no-repeat !important;
             background-color: rgb(32, 80, 129) !important;
+            background-size: 30px !important;
             color: #FFFFFF !important;
-            border: 1px solid rgba(0,0,0,.15) !important;
+            padding-left: 30px !important;
+            cursor: pointer !important;
           }
           #login-form-holder {
             padding-top: 3em;
@@ -66,7 +66,7 @@ THE SOFTWARE.
           loginFormDiv.id='login-form-holder';
 
           moreOptionsA.id='js-more-options';
-          moreOptionsA.innerText='More options';
+          moreOptionsA.innerText="${%More options}";
           moreOptionsA.onclick=function() {
             document.forms['login'].style.display ='initial';
             document.getElementById('js-more-options').style.display='none';
