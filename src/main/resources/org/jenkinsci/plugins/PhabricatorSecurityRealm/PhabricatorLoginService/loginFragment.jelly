@@ -34,7 +34,49 @@ THE SOFTWARE.
             color: #FFFFFF !important;
             border: 1px solid rgba(0,0,0,.15) !important;
           }
+          #login-form-holder {
+            padding-top: 3em;
+          }
+          #login-form-holder>a {
+            margin-left: 3px;
+            border-bottom: 1px solid #ddd;
+            font-size: small;
+            cursor: pointer;
+            outline: 0;
+            text-decoration: none;
+            transition: all .2s ease;
+          }
+          #login-form-holder>a, #login-form-holder>a:visited {
+            color: #777;
+          }
+          #login-form-holder>a:active, #login-form-holder>a:focus, #login-form-holder>a:hover {
+            color: #5e5e5e;
+          }
         </style>
+        <script>
+          // Hiding the default login form behind "More options"
+          //
+          var loginForm = document.forms['login'];
+          var outerElement = loginForm.parentElement;
+          var loginFormDiv = document.createElement('div');
+          var moreOptionsA = document.createElement('a');
+
+          loginForm.style.display='none';
+
+          loginFormDiv.id='login-form-holder';
+
+          moreOptionsA.id='js-more-options';
+          moreOptionsA.innerText='More options';
+          moreOptionsA.onclick=function() {
+            document.forms['login'].style.display ='initial';
+            document.getElementById('js-more-options').style.display='none';
+            return false;
+          };
+
+          loginFormDiv.appendChild(moreOptionsA);
+          loginFormDiv.appendChild(loginForm);
+          outerElement.appendChild(loginFormDiv);
+        </script>
       </form>
     </div>
   </j:if>
