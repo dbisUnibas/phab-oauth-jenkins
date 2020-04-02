@@ -25,7 +25,12 @@
 package org.jenkinsci.plugins;
 
 
-public class PhabricatorUser {
+import java.io.Serializable;
+
+
+public class PhabricatorUser implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private String username;
     private String realname;

@@ -26,6 +26,7 @@
 package org.jenkinsci.plugins;
 
 
+import com.google.inject.Inject;
 import hudson.security.SecurityRealm;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -44,13 +45,16 @@ import org.json.JSONObject;
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
 
     private static final long serialVersionUID = 1L;
+
     private final String accessToken;
 
     private PhabricatorUser user;
     private final String userName;
-    private PhabricatorSecurityRealm myRealm = null;
 
-    private final List<GrantedAuthority> authorities = new ArrayList<GrantedAuthority>();
+    @Inject
+    private transient Jenkins jenkins;
+
+    private final List<GrantedAuthority> authorities = new ArrayList<>();
 
 
     public PhabricatorAuthenticationToken( String accessToken ) throws IOException {
@@ -59,11 +63,6 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
         this.accessToken = accessToken;
 
         authorities.add( SecurityRealm.AUTHENTICATED_AUTHORITY );
-        if ( Jenkins.getInstance().getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
-            if ( myRealm == null ) {
-                myRealm = (PhabricatorSecurityRealm) Jenkins.getInstance().getSecurityRealm();
-            }
-        }
 
         user = authUsingToken();
         if ( user == null ) {
@@ -90,7 +89,13 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
     protected PhabricatorUser authUsingToken() throws IOException {
         LOGGER.log( Level.WARNING, "Login using token" );
 
-        final String result = myRealm.getUrlContent( new HttpGet( myRealm.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken ) );
+        final PhabricatorSecurityRealm phabricator;
+        if ( jenkins.getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
+            phabricator = (PhabricatorSecurityRealm) jenkins.getSecurityRealm();
+        } else {
+            throw new IllegalStateException( "jenkins.getSecurityRealm() is not PhabricatorSecurityRealm" );
+        }
+        final String result = phabricator.getUrlContent( new HttpGet( phabricator.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken ) );
 
         PhabricatorUser user = null;
         try {

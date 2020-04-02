@@ -145,6 +145,9 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     private String clientSecret;
     private String serverURL; // no slash at the end
 
+    @Inject
+    private transient Jenkins jenkins;
+
 
     public PhabricatorSecurityRealm() {
         if ( !allowsSignup() && !hasSomeUser() ) {
@@ -266,7 +269,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
             return HttpResponses.redirectToContextRoot();
         }
 
-        String redirectUrl = Jenkins.getInstance().getRootUrl();
+        String redirectUrl = jenkins.getRootUrl();
         redirectUrl += (redirectUrl.endsWith( "/" ) ? "" : "/") + "securityRealm/finishLogin";
 
         List<NameValuePair> parameters = new ArrayList<>();
@@ -293,7 +296,10 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
             SecurityContextHolder.getContext().setAuthentication( auth );
             PhabricatorUser phabricatorUser = auth.getUser();
 
-            final User jenkinsUser = User.current();
+            User jenkinsUser = User.current();
+            if ( jenkinsUser == null ) {
+                throw new IllegalStateException( "jenkinsUser == null" );
+            }
             jenkinsUser.setFullName( phabricatorUser.getRealname() );
             jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
         } else {
@@ -324,7 +330,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
 
     @Override
     public SecurityComponents createSecurityComponents() {
-        SecurityComponents securityComponents = super.createSecurityComponents();
+        final SecurityComponents securityComponents = super.createSecurityComponents();
 
         return new SecurityComponents( new AuthenticationManager() {
 
@@ -398,19 +404,19 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     @Nonnull
     @Override
     public ACL getACL() {
-        return Jenkins.getInstance().getACL();
+        return jenkins.getACL();
     }
 
 
     @Override
     public void checkPermission( @Nonnull Permission permission ) throws AccessDeniedException {
-        Jenkins.getInstance().checkPermission( permission );
+        jenkins.checkPermission( permission );
     }
 
 
     @Override
     public boolean hasPermission( @Nonnull Permission permission ) {
-        return Jenkins.getInstance().hasPermission( permission );
+        return jenkins.hasPermission( permission );
     }
 
 
@@ -543,7 +549,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
         if ( isMailerPluginPresent() ) {
             try {
                 // legacy hack. mail support has moved out to a separate plugin
-                Class<?> up = Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+                Class<?> up = jenkins.pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
                 Constructor<?> c = up.getDeclaredConstructor( String.class );
                 user.addProperty( (UserProperty) c.newInstance( si.email ) );
             } catch ( ReflectiveOperationException e ) {
@@ -559,7 +565,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     public boolean isMailerPluginPresent() {
         try {
             // mail support has moved to a separate plugin
-            return null != Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+            return null != jenkins.pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
         } catch ( ClassNotFoundException e ) {
             LOGGER.finer( "Mailer plugin not present" );
         }
@@ -610,7 +616,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
      * Try to make this user a super-user
      */
     private void tryToMakeAdmin( User u ) {
-        AuthorizationStrategy as = Jenkins.getInstance().getAuthorizationStrategy();
+        AuthorizationStrategy as = jenkins.getAuthorizationStrategy();
         for ( PermissionAdder adder : ExtensionList.lookup( PermissionAdder.class ) ) {
             if ( adder.add( as, u, Jenkins.ADMINISTER ) ) {
                 return;
@@ -674,8 +680,12 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     @Symbol("localUsers")
     public static class ManageUserLinks extends ManagementLink {
 
+        @Inject
+        private transient Jenkins jenkins;
+
+
         public String getIconFileName() {
-            if ( Jenkins.getInstance().getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
+            if ( jenkins.getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
                 return "user.png";
             } else {
                 return null;    // not applicable now
