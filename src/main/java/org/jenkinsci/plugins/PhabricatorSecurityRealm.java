@@ -92,7 +92,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
         }
 
         while ( serverUrl.endsWith( "/" ) ) {
-            serverUrl = serverURL.substring( 0, serverUrl.length() - 1 );
+            serverUrl = serverUrl.substring( 0, serverUrl.length() - 1 );
         }
         return serverUrl;
     }
@@ -142,7 +142,9 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
 
     public HttpResponse doCommenceLogin( StaplerRequest request, @Header("Referer") final String referer ) throws IOException {
         LOGGER.log( Level.WARNING, "doCommenceLogin" );
+
         request.getSession().setAttribute( REFERER_ATTRIBUTE, referer );
+
         return new HttpRedirect( getServerURL() + PHAB_OAUTH + "/auth/?client_id=" + clientID + "&response_type=code&scope=" + OAUTH_SCOPES );
     }
 
@@ -175,6 +177,7 @@ public class PhabricatorSecurityRealm extends SecurityRealm {
             PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( accessToken );
             SecurityContextHolder.getContext().setAuthentication( auth );
             PhabricatorUser phabricatorUser = auth.getUser();
+
             User jenkinsUser = User.current();
             jenkinsUser.setFullName( phabricatorUser.getRealname() );
             jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
