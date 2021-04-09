@@ -47,6 +47,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
@@ -689,7 +690,15 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
 
         @Override
         public Class<? extends FederatedLoginServiceUserProperty> getUserPropertyClass() {
-            return null;
+            return PhabricatorLoginServiceUserProperty.class;
+        }
+    }
+
+
+    public class PhabricatorLoginServiceUserProperty extends FederatedLoginServiceUserProperty {
+
+        protected PhabricatorLoginServiceUserProperty( Collection<String> identifiers ) {
+            super( identifiers );
         }
     }
 
