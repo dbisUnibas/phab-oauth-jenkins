@@ -14,6 +14,7 @@ package org.jenkinsci.plugins;
 import static javax.servlet.http.HttpServletResponse.SC_UNAUTHORIZED;
 
 import com.google.inject.Inject;
+import edu.umd.cs.findbugs.annotations.NonNull;
 import hudson.Extension;
 import hudson.ExtensionList;
 import hudson.Util;
@@ -35,7 +36,7 @@ import hudson.security.HudsonPrivateSecurityRealm.SignupInfo;
 import hudson.security.Permission;
 import hudson.security.PermissionAdder;
 import hudson.security.SecurityRealm;
-import hudson.security.UserMayOrMayNotExistException;
+import hudson.security.UserMayOrMayNotExistException2;
 import hudson.tasks.Mailer;
 import hudson.util.PluginServletFilter;
 import java.io.IOException;
@@ -64,16 +65,6 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import jenkins.model.Jenkins;
 import jenkins.security.SecurityListener;
-import org.acegisecurity.AccessDeniedException;
-import org.acegisecurity.Authentication;
-import org.acegisecurity.AuthenticationException;
-import org.acegisecurity.AuthenticationManager;
-import org.acegisecurity.BadCredentialsException;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.context.SecurityContextHolder;
-import org.acegisecurity.providers.UsernamePasswordAuthenticationToken;
-import org.acegisecurity.userdetails.UserDetails;
-import org.acegisecurity.userdetails.UsernameNotFoundException;
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.http.NameValuePair;
 import org.apache.http.client.methods.HttpGet;
@@ -97,46 +88,25 @@ import org.kohsuke.stapler.Stapler;
 import org.kohsuke.stapler.StaplerRequest;
 import org.kohsuke.stapler.StaplerResponse;
 import org.kohsuke.stapler.interceptor.RequirePOST;
-import org.springframework.dao.DataAccessException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 
 
 /**
+ * {@link hudson.security.SecurityRealm} that performs authentication by looking up {@link hudson.model.User} locally or by using Phabricator's OAuth Service.
+ *
+ * <p>
+ * This implementation contains methods of {@link hudson.security.HudsonPrivateSecurityRealm}.
+ *
  * @see hudson.security.HudsonPrivateSecurityRealm
  */
 public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm implements AccessControlled, ModelObject {
-
-    private static final Logger LOGGER = Logger.getLogger( PhabricatorSecurityRealm.class.getName() );
-
-    private static final Filter CREATE_FIRST_USER_FILTER = new Filter() {
-        public void init( FilterConfig config ) throws ServletException {
-        }
-
-
-        public void doFilter( ServletRequest request, ServletResponse response, FilterChain chain ) throws IOException, ServletException {
-            HttpServletRequest req = (HttpServletRequest) request;
-
-            /* allow signup from the Jenkins home page, or /manage, which is where a /configureSecurity form redirects to */
-            if ( req.getRequestURI().equals( req.getContextPath() + "/" ) || req.getRequestURI().equals( req.getContextPath() + "/manage" ) ) {
-                if ( needsToCreateFirstUser() ) {
-                    ((HttpServletResponse) response).sendRedirect( "securityRealm/firstUser" );
-                } else {// the first user already created. the role of this filter is over.
-                    PluginServletFilter.removeFilter( this );
-                    chain.doFilter( request, response );
-                }
-            } else {
-                chain.doFilter( request, response );
-            }
-        }
-
-
-        private boolean needsToCreateFirstUser() {
-            return !hasSomeUser() && Jenkins.getInstance().getSecurityRealm() instanceof HudsonPrivateSecurityRealm;
-        }
-
-
-        public void destroy() {
-        }
-    };
 
     private static final String REFERER_ATTRIBUTE = PhabricatorSecurityRealm.class.getName() + ".referer";
     private static final String OAUTH_SCOPES = "";
@@ -212,222 +182,6 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     }
 
 
-    /**
-     *
-     * @param request
-     * @param referer
-     * @return
-     * @throws IOException
-     * @throws URISyntaxException
-     */
-    public HttpResponse doCommenceLogin( StaplerRequest request, @Header("Referer") String referer ) throws IOException, URISyntaxException {
-        LOGGER.log( Level.WARNING, "doCommenceLogin" );
-
-        if ( LOGGER.isLoggable( Level.FINE ) ) {
-            LOGGER.log( Level.FINE, "doCommenceLogin-OriginalReferer=" + referer );
-        }
-        final URI originalRefererUri = URI.create( referer );
-        final List<NameValuePair> originalQueryParameters = URLEncodedUtils.parse( originalRefererUri, StandardCharsets.UTF_8.toString() );
-        final List<NameValuePair> newQueryParameters = new LinkedList<>();
-        String path = originalRefererUri.getPath();
-        for ( NameValuePair queryParameter : originalQueryParameters ) {
-            if ( queryParameter.getName().equals( "from" ) ) {
-                path = StringEscapeUtils.unescapeHtml( queryParameter.getValue() );
-            } else {
-                newQueryParameters.add( queryParameter );
-            }
-        }
-        referer = new URI( originalRefererUri.getScheme(), originalRefererUri.getAuthority(), path, newQueryParameters.isEmpty() ? null : URLEncodedUtils.format( newQueryParameters, StandardCharsets.UTF_8.toString() ), originalRefererUri.getFragment() ).toASCIIString();
-        if ( LOGGER.isLoggable( Level.FINE ) ) {
-            LOGGER.log( Level.FINE, "doCommenceLogin-New Referer=" + referer );
-        }
-
-        request.getSession().setAttribute( REFERER_ATTRIBUTE, referer );
-
-        List<NameValuePair> parameters = new ArrayList<>();
-        parameters.add( new BasicNameValuePair( "response_type", "code" ) );
-        parameters.add( new BasicNameValuePair( "client_id", clientID ) );
-        parameters.add( new BasicNameValuePair( "scope", OAUTH_SCOPES ) );
-
-        // getServerURL() + PHAB_OAUTH + "/auth/?client_id=" + clientID + "&response_type=code&scope=" + OAUTH_SCOPES
-        return new HttpRedirect( getServerURL() + PHAB_OAUTH + "/auth/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.toString() ) );
-    }
-
-
-    /**
-     *
-     * @param request
-     * @return
-     * @throws IOException
-     */
-    public HttpResponse doFinishLogin( StaplerRequest request ) throws IOException {
-        String code = request.getParameter( "code" );
-
-        if ( code == null || code.trim().length() == 0 ) {
-            Log.info( "doFinishLogin: missing code." );
-            return HttpResponses.redirectToContextRoot();
-        }
-
-        String redirectUrl = Jenkins.getInstance().getRootUrl();
-        redirectUrl += (redirectUrl.endsWith( "/" ) ? "" : "/") + "securityRealm/finishLogin";
-
-        List<NameValuePair> parameters = new ArrayList<>();
-        parameters.add( new BasicNameValuePair( "client_id", clientID ) );
-        parameters.add( new BasicNameValuePair( "client_secret", clientSecret ) );
-        parameters.add( new BasicNameValuePair( "code", code ) );
-        parameters.add( new BasicNameValuePair( "grant_type", "authorization_code" ) );
-        parameters.add( new BasicNameValuePair( "redirect_uri", redirectUrl ) );
-
-        // getServerURL() + PHAB_OAUTH + "/token/?client_id=" + clientID + "&client_secret=" + clientSecret + "&code=" + code + "&grant_type=authorization_code&redirect_uri=" + rootUrl
-        final String content = getUrlContent( new HttpGet( getServerURL() + PHAB_OAUTH + "/token/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.name() ) ) );
-        String accessToken;
-        try {
-            JSONObject jsonObject = new JSONObject( content );
-            accessToken = jsonObject.getString( "access_token" );
-            LOGGER.log( Level.WARNING, "accessToken FOUND=" + accessToken );
-        } catch ( JSONException e ) {
-            LOGGER.log( Level.WARNING, "accessToken not found=" + e.getMessage() );
-            LOGGER.log( Level.WARNING, "Request was: " + getServerURL() + PHAB_OAUTH + "/token/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.name() ) );
-            LOGGER.log( Level.WARNING, "Response was: " + content );
-            accessToken = null;
-        }
-
-        if ( accessToken != null && accessToken.trim().length() > 0 ) {
-            final PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( accessToken );
-            SecurityContextHolder.getContext().setAuthentication( auth ); // This sets the Jenkins User ID to the username used in Phabricator
-            PhabricatorUser phabricatorUser = auth.getUser();
-
-            // prevent session fixation attack
-            Stapler.getCurrentRequest().getSession().invalidate();
-            Stapler.getCurrentRequest().getSession();
-
-            User jenkinsUser = User.current(); // == User.get( phabricatorUser.getUsername() ) since the username has already been set according to the one of Phabricator
-            if ( jenkinsUser == null ) {
-                // This should never happen. We got a username from Phabricator and if this user did not already exist in Jenkins it was created by invoking `User.current()`. It can be `null` if and only if no `Authentication` is set in the `SecurityContextHolder`.
-                throw new IllegalStateException( "jenkinsUser == null" );
-            }
-            jenkinsUser.setFullName( phabricatorUser.getRealname() );
-            jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
-
-            SecurityListener.fireLoggedIn( jenkinsUser.getId() );
-        } else {
-            Log.info( "Phabricator did not return an access token." );
-        }
-
-        String referer = (String) request.getSession().getAttribute( REFERER_ATTRIBUTE );
-        if ( referer != null ) {
-            return HttpResponses.redirectTo( referer );
-        }
-
-        return HttpResponses.redirectToContextRoot();
-    }
-
-
-    protected String getUrlContent( final HttpUriRequest request ) throws IOException {
-        DefaultHttpClient httpClient = null;
-        try {
-            httpClient = new DefaultHttpClient();
-            return EntityUtils.toString( httpClient.execute( request ).getEntity() );
-        } finally {
-            if ( httpClient != null ) {
-                httpClient.getConnectionManager().shutdown();
-            }
-        }
-    }
-
-
-    @Override
-    public SecurityComponents createSecurityComponents() {
-        final SecurityComponents securityComponents = super.createSecurityComponents();
-
-        return new SecurityComponents( new AuthenticationManager() {
-
-            public Authentication authenticate( Authentication authentication ) throws AuthenticationException {
-                if ( authentication instanceof PhabricatorAuthenticationToken ) {
-                    return authentication;
-                }
-                return securityComponents.manager.authenticate( authentication );
-            }
-        }, securityComponents.userDetails );
-    }
-
-
-    @Override
-    protected UserDetails authenticate( String username, String password ) throws AuthenticationException {
-        UserDetails u = loadUserByUsername( username );
-        if ( u instanceof Details ) {
-            if ( !((Details) u).isPasswordCorrect( password ) ) {
-                String message;
-                try {
-                    message = ResourceBundle.getBundle( "org.acegisecurity.messages" ).getString( "AbstractUserDetailsAuthenticationProvider.badCredentials" );
-                } catch ( MissingResourceException x ) {
-                    message = "Bad credentials";
-                }
-                throw new BadCredentialsException( message );
-            }
-        } else {
-            throw new AuthenticationException( "u is not instance of Details" ) {
-            };
-        }
-        return u;
-    }
-
-
-    @Override
-    public UserDetails loadUserByUsername( String username ) throws UsernameNotFoundException, DataAccessException {
-        User u = User.getById( username, false );
-        Details p = u != null ? u.getProperty( Details.class ) : null;
-        if ( p != null && !p.isInvalid() ) {
-            return p;
-        }
-
-        Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
-        if ( authToken == null ) {
-            throw new UserMayOrMayNotExistException( "Could not get auth token." );
-        }
-
-        if ( username == null || username.isEmpty() ) {
-            throw new UsernameNotFoundException( "Could not get username." );
-        }
-
-        List<GrantedAuthority> authorities = new ArrayList<>();
-        authorities.add( SecurityRealm.AUTHENTICATED_AUTHORITY );
-
-        return new PhabricatorOAuthUserDetails( username, authorities.toArray( new GrantedAuthority[authorities.size()] ) );
-    }
-
-
-    @Override
-    public GroupDetails loadGroupByGroupname( String groupname ) throws UsernameNotFoundException, DataAccessException {
-        throw new UsernameNotFoundException( groupname );
-    }
-
-
-    @Override
-    public String getDisplayName() {
-        return "Manage Local Users";
-    }
-
-
-    @Nonnull
-    @Override
-    public ACL getACL() {
-        return Jenkins.getInstance().getACL();
-    }
-
-
-    @Override
-    public void checkPermission( @Nonnull Permission permission ) throws AccessDeniedException {
-        Jenkins.getInstance().checkPermission( permission );
-    }
-
-
-    @Override
-    public boolean hasPermission( @Nonnull Permission permission ) {
-        return Jenkins.getInstance().hasPermission( permission );
-    }
-
-
     @Override
     public boolean allowsSignup() {
         return false;
@@ -450,20 +204,77 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     }
 
 
-    public List<User> getAllUsers() {
-        List<User> r = new ArrayList<User>();
-        for ( User u : User.getAll() ) {
-            if ( u.getProperty( Details.class ) != null ) {
-                r.add( u );
-            }
-        }
-        Collections.sort( r );
-        return r;
+    @Restricted(NoExternalUse.class)
+    public Details loadUser( String username ) throws UsernameNotFoundException {
+        User user = User.getById( username, false );
+        return user != null ? user.getProperty( Details.class ) : null;
     }
 
 
-    public User getUser( String id ) {
-        return User.getById( id, true );
+    @Override
+    public UserDetails loadUserByUsername2( String username ) throws UsernameNotFoundException {
+        Details userProperties = loadUser( username );
+        if ( userProperties != null ) {
+            // Username:Password was successful
+            return new PhabricatorOAuthUserDetails( userProperties );
+        }
+
+        // No username:password found
+        // Try phabricator oauth
+
+        Authentication authToken = SecurityContextHolder.getContext().getAuthentication();
+        if ( authToken == null ) {
+            throw new UserMayOrMayNotExistException2( "Could not get auth token." );
+        }
+
+        if ( username == null || username.isEmpty() ) {
+            throw new UsernameNotFoundException( "Could not get username." );
+        }
+
+        return new PhabricatorOAuthUserDetails( username, Collections.singletonList( SecurityRealm.AUTHENTICATED_AUTHORITY2 ) );
+    }
+
+
+    /**
+     * This implementation doesn't support groups.
+     */
+    @Override
+    public GroupDetails loadGroupByGroupname2( String groupname, boolean fetchMembers ) throws UsernameNotFoundException {
+        throw new UsernameNotFoundException( groupname );
+    }
+
+
+    @Override
+    protected UserDetails authenticate2( String username, String password ) throws AuthenticationException {
+        Details userProperties = loadUser( username );
+
+        if ( !userProperties.isPasswordCorrect( password ) ) {
+            String message;
+            try {
+                message = ResourceBundle.getBundle( "org.acegisecurity.messages" ).getString( "AbstractUserDetailsAuthenticationProvider.badCredentials" );
+            } catch ( MissingResourceException x ) {
+                message = "Bad credentials";
+            }
+            throw new BadCredentialsException( message );
+        }
+        return new PhabricatorOAuthUserDetails( userProperties );
+    }
+
+
+    /**
+     * Lets the current user silently login as the given user and report back accordingly.
+     */
+    @SuppressWarnings("ACL.impersonate")
+    private void loginAndTakeBack( StaplerRequest req, StaplerResponse rsp, User u ) throws ServletException, IOException {
+        // ... and let him login
+        Authentication a = new UsernamePasswordAuthenticationToken( u.getId(), req.getParameter( "password1" ) );
+        a = this.getSecurityComponents().manager2.authenticate( a );
+        SecurityContextHolder.getContext().setAuthentication( a );
+
+        SecurityListener.fireLoggedIn( u.getId() );
+
+        // then back to top
+        req.getView( this, "success.jelly" ).forward( req, rsp );
     }
 
 
@@ -493,110 +304,12 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
     }
 
 
-    /**
-     * @return null if failed. The browser is already redirected to retry by the time this method returns.
-     * a valid {@link User} object if the user creation was successful.
-     */
-    private User createAccount( StaplerRequest req, StaplerResponse rsp, boolean selfRegistration, String formView ) throws ServletException, IOException {
-        // form field validation
-        // this pattern needs to be generalized and moved to stapler
-        SignupInfo si = new SignupInfo( req );
-
-        if ( selfRegistration && !validateCaptcha( si.captcha ) ) {
-            si.errorMessage = "Text didn't match the word shown in the image";
+    private String getErrorMessages( SignupInfo si ) {
+        StringBuilder messages = new StringBuilder();
+        for ( String message : si.errors.values() ) {
+            messages.append( message ).append( " | " );
         }
-
-        if ( si.password1 != null && !si.password1.equals( si.password2 ) ) {
-            si.errorMessage = "Password didn't match";
-        }
-
-        if ( !(si.password1 != null && si.password1.length() != 0) ) {
-            si.errorMessage = "Password is required";
-        }
-
-        if ( si.username == null || si.username.length() == 0 ) {
-            si.errorMessage = "User name is required";
-        } else {
-            // do not create the user - we just want to check if the user already exists but is not a "login" user.
-            User user = User.getById( si.username, false );
-            if ( null != user )
-            // Allow sign up. SCM people has no such property.
-            {
-                if ( user.getProperty( Details.class ) != null ) {
-                    si.errorMessage = "User name is already taken";
-                }
-            }
-        }
-
-        if ( si.fullname == null || si.fullname.length() == 0 ) {
-            si.fullname = si.username;
-        }
-
-        if ( isMailerPluginPresent() && (si.email == null || !si.email.contains( "@" )) ) {
-            si.errorMessage = "Invalid e-mail address";
-        }
-
-        if ( !User.isIdOrFullnameAllowed( si.username ) ) {
-            si.errorMessage = hudson.model.Messages.User_IllegalUsername( si.username );
-        }
-
-        if ( !User.isIdOrFullnameAllowed( si.fullname ) ) {
-            si.errorMessage = hudson.model.Messages.User_IllegalFullname( si.fullname );
-        }
-
-        if ( si.errorMessage != null ) {
-            // failed. ask the user to try again.
-            req.setAttribute( "data", si );
-            req.getView( this, formView ).forward( req, rsp );
-            return null;
-        }
-
-        // register the user
-        User user = createAccount( si.username, si.password1 );
-        user.setFullName( si.fullname );
-        if ( isMailerPluginPresent() ) {
-            try {
-                // legacy hack. mail support has moved out to a separate plugin
-                Class<?> up = Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
-                Constructor<?> c = up.getDeclaredConstructor( String.class );
-                user.addProperty( (UserProperty) c.newInstance( si.email ) );
-            } catch ( ReflectiveOperationException e ) {
-                throw new RuntimeException( e );
-            }
-        }
-        user.save();
-        return user;
-    }
-
-
-    @Restricted(NoExternalUse.class)
-    public boolean isMailerPluginPresent() {
-        try {
-            // mail support has moved to a separate plugin
-            return null != Jenkins.getInstance().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
-        } catch ( ClassNotFoundException e ) {
-            LOGGER.finer( "Mailer plugin not present" );
-        }
-        return false;
-    }
-
-
-    /**
-     * Creates a new user account by registering a password to the user.
-     */
-    public User createAccount( String userName, String password ) throws IOException {
-        User user = User.getById( userName, true );
-        try {
-            Method Details_fromPlainPassword = Details.class.getDeclaredMethod( "fromPlainPassword", String.class );
-            if ( !Details_fromPlainPassword.isAccessible() ) {
-                Details_fromPlainPassword.setAccessible( true ); //if security settings allow this
-            }
-            Details details = (Details) Details_fromPlainPassword.invoke( null, password ); //use null if the method is static
-            user.addProperty( /*Details.fromPlainPassword( password )*/ details );
-        } catch ( NoSuchMethodException | IllegalAccessException | InvocationTargetException e ) {
-            throw new IOException( e );
-        }
-        return user;
+        return messages.toString();
     }
 
 
@@ -624,7 +337,7 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
      * Try to make this user a super-user
      */
     private void tryToMakeAdmin( User u ) {
-        AuthorizationStrategy as = Jenkins.getInstance().getAuthorizationStrategy();
+        AuthorizationStrategy as = Jenkins.get().getAuthorizationStrategy();
         for ( PermissionAdder adder : ExtensionList.lookup( PermissionAdder.class ) ) {
             if ( adder.add( as, u, Jenkins.ADMINISTER ) ) {
                 return;
@@ -634,19 +347,320 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
 
 
     /**
-     * Lets the current user silently login as the given user and report back accordingly.
+     * @param req the request to get the form data from (is also used for redirection)
+     * @param rsp the response to use for forwarding if the creation fails
+     * @param validateCaptcha whether to attempt to validate a captcha in the request
+     * @param formView the view to redirect to if creation fails
+     * @return null if failed. The browser is already redirected to retry by the time this method returns.
+     * a valid {@link User} object if the user creation was successful.
      */
-    @SuppressWarnings("ACL.impersonate")
-    private void loginAndTakeBack( StaplerRequest req, StaplerResponse rsp, User u ) throws ServletException, IOException {
-        // ... and let him login
-        Authentication a = new UsernamePasswordAuthenticationToken( u.getId(), req.getParameter( "password1" ) );
-        a = this.getSecurityComponents().manager.authenticate( a );
-        SecurityContextHolder.getContext().setAuthentication( a );
+    private User createAccount( StaplerRequest req, StaplerResponse rsp, boolean validateCaptcha, String formView ) throws ServletException, IOException {
+        SignupInfo si = validateAccountCreationForm( req, validateCaptcha );
 
-        SecurityListener.fireLoggedIn( u.getId() );
+        if ( !si.errors.isEmpty() ) {
+            // failed. ask the user to try again.
+            req.getView( this, formView ).forward( req, rsp );
+            return null;
+        }
 
-        // then back to top
-        req.getView( this, "success.jelly" ).forward( req, rsp );
+        return createAccount( si );
+    }
+
+
+    /**
+     * @param req the request to process
+     * @param validateCaptcha whether to attempt to validate a captcha in the request
+     * @return a {@link SignupInfo#SignupInfo(StaplerRequest) SignupInfo from given request}, with {@link
+     * SignupInfo#errors} containing errors (keyed by field name), if any of the supported fields are invalid
+     */
+    private SignupInfo validateAccountCreationForm( StaplerRequest req, boolean validateCaptcha ) {
+        // form field validation
+        // this pattern needs to be generalized and moved to stapler
+        SignupInfo si = new SignupInfo( req );
+
+        if ( validateCaptcha && !validateCaptcha( si.captcha ) ) {
+            si.errorMessage = "Text didn't match the word shown in the image";
+        }
+
+        if ( si.username == null || si.username.length() == 0 ) {
+            si.errorMessage = "User name is required";
+        } else {
+            // do not create the user - we just want to check if the user already exists but is not a "login" user.
+            User user = User.getById( si.username, false );
+            if ( null != user )
+            // Allow sign up. SCM people has no such property.
+            {
+                if ( user.getProperty( Details.class ) != null ) {
+                    si.errorMessage = "User name is already taken";
+                }
+            }
+        }
+
+        if ( si.password1 != null && !si.password1.equals( si.password2 ) ) {
+            si.errorMessage = "Password didn't match";
+        }
+
+        if ( !(si.password1 != null && si.password1.length() != 0) ) {
+            si.errorMessage = "Password is required";
+        }
+
+        if ( si.fullname == null || si.fullname.length() == 0 ) {
+            si.fullname = si.username;
+        }
+
+        if ( isMailerPluginPresent() && (si.email == null || !si.email.contains( "@" )) ) {
+            si.errorMessage = "Invalid e-mail address";
+        }
+
+        if ( !User.isIdOrFullnameAllowed( si.username ) ) {
+            si.errorMessage = "\"" + si.username + "\" is prohibited as a username for security reasons.";
+        }
+
+        if ( !User.isIdOrFullnameAllowed( si.fullname ) ) {
+            si.errorMessage = "\"" + si.fullname + "\" is prohibited as a full name for security reasons.";
+        }
+
+        req.setAttribute( "data", si ); // for error messages in the view
+        return si;
+    }
+
+
+    /**
+     * Creates a new account from a valid signup info. A signup info is valid if its {@link SignupInfo#errors}
+     * field is empty.
+     *
+     * @param si the valid signup info to create an account from
+     * @return a valid {@link User} object created from given signup info
+     * @throws IllegalArgumentException if an invalid signup info is passed
+     */
+    private User createAccount( SignupInfo si ) throws IOException {
+        if ( !si.errors.isEmpty() ) {
+            String messages = getErrorMessages( si );
+            throw new IllegalArgumentException( "invalid signup info passed to createAccount(si): " + messages );
+        }
+
+        // register the user
+        User user = createAccount( si.username, si.password1 );
+        user.setFullName( si.fullname );
+        if ( isMailerPluginPresent() ) {
+            try {
+                // legacy hack. mail support has moved out to a separate plugin
+                Class<?> up = Jenkins.get().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+                Constructor<?> c = up.getDeclaredConstructor( String.class );
+                user.addProperty( (UserProperty) c.newInstance( si.email ) );
+            } catch ( ReflectiveOperationException e ) {
+                throw new RuntimeException( e );
+            }
+        }
+        user.save();
+        return user;
+    }
+
+
+    @Restricted(NoExternalUse.class)
+    public boolean isMailerPluginPresent() {
+        try {
+            // mail support has moved to a separate plugin
+            return null != Jenkins.get().pluginManager.uberClassLoader.loadClass( "hudson.tasks.Mailer$UserProperty" );
+        } catch ( ClassNotFoundException e ) {
+            LOGGER.finer( "Mailer plugin not present" );
+        }
+        return false;
+    }
+
+
+    /**
+     * Creates a new user account by registering a password to the user.
+     */
+    public User createAccount( String userName, String password ) throws IOException {
+        User user = User.getById( userName, true );
+        try {
+            Method Details_fromPlainPassword = Details.class.getDeclaredMethod( "fromPlainPassword", String.class );
+            if ( !Details_fromPlainPassword.isAccessible() ) {
+                Details_fromPlainPassword.setAccessible( true ); //if security settings allow this
+            }
+            Details details = (Details) Details_fromPlainPassword.invoke( null, password ); //use null if the method is static
+            user.addProperty( /*Details.fromPlainPassword( password )*/ details );
+        } catch ( NoSuchMethodException | IllegalAccessException | InvocationTargetException e ) {
+            throw new IOException( e );
+        }
+        return user;
+    }
+
+
+    @Override
+    public String getDisplayName() {
+        return "Manage Local Users";
+    }
+
+
+    @Nonnull
+    @Override
+    public ACL getACL() {
+        return Jenkins.get().getACL();
+    }
+
+
+    @Override
+    public void checkPermission( @NonNull Permission permission ) throws AccessDeniedException {
+        Jenkins.get().checkPermission( permission );
+    }
+
+
+    @Override
+    public boolean hasPermission( @NonNull Permission permission ) {
+        return Jenkins.get().hasPermission( permission );
+    }
+
+
+    /**
+     * All users who can login to the system.
+     */
+    public List<User> getAllUsers() {
+        List<User> r = new ArrayList<User>();
+        for ( User u : User.getAll() ) {
+            if ( u.getProperty( Details.class ) != null ) {
+                r.add( u );
+            }
+        }
+        Collections.sort( r );
+        return r;
+    }
+
+
+    @Restricted(NoExternalUse.class)
+    public User getUser( String id ) {
+        return User.getById( id, true );
+    }
+
+
+    /**
+     *
+     */
+    public HttpResponse doCommenceLogin( StaplerRequest request, @Header("Referer") String referer ) throws IOException, URISyntaxException {
+        LOGGER.log( Level.FINE, "doCommenceLogin" );
+
+        if ( LOGGER.isLoggable( Level.FINE ) ) {
+            LOGGER.log( Level.FINE, "doCommenceLogin-OriginalReferer=" + referer );
+        }
+
+        final URI originalRefererUri = URI.create( referer );
+        final List<NameValuePair> originalQueryParameters = URLEncodedUtils.parse( originalRefererUri, StandardCharsets.UTF_8.toString() );
+        final List<NameValuePair> newQueryParameters = new LinkedList<>();
+
+        String path = originalRefererUri.getPath();
+        for ( NameValuePair queryParameter : originalQueryParameters ) {
+            if ( queryParameter.getName().equals( "from" ) ) {
+                path = StringEscapeUtils.unescapeHtml( queryParameter.getValue() );
+            } else {
+                newQueryParameters.add( queryParameter );
+            }
+        }
+
+        referer = new URI( originalRefererUri.getScheme(), originalRefererUri.getAuthority(), path, newQueryParameters.isEmpty() ? null : URLEncodedUtils.format( newQueryParameters, StandardCharsets.UTF_8.toString() ), originalRefererUri.getFragment() ).toASCIIString();
+        if ( LOGGER.isLoggable( Level.FINE ) ) {
+            LOGGER.log( Level.FINE, "doCommenceLogin-New Referer=" + referer );
+        }
+
+        request.getSession().setAttribute( REFERER_ATTRIBUTE, referer );
+
+        List<NameValuePair> parameters = new ArrayList<>();
+        parameters.add( new BasicNameValuePair( "response_type", "code" ) );
+        parameters.add( new BasicNameValuePair( "client_id", clientID ) );
+        parameters.add( new BasicNameValuePair( "scope", OAUTH_SCOPES ) );
+
+        // getServerURL() + PHAB_OAUTH + "/auth/?client_id=" + clientID + "&response_type=code&scope=" + OAUTH_SCOPES
+        return new HttpRedirect( getServerURL() + PHAB_OAUTH + "/auth/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.toString() ) );
+    }
+
+
+    /**
+     *
+     */
+    public HttpResponse doFinishLogin( StaplerRequest request ) throws IOException {
+        String code = request.getParameter( "code" );
+
+        if ( code == null || code.trim().length() == 0 ) {
+            Log.warn( "doFinishLogin: missing code." );
+            return HttpResponses.redirectToContextRoot();
+        }
+
+        String redirectUrl = Jenkins.get().getRootUrl();
+        redirectUrl += (redirectUrl.endsWith( "/" ) ? "" : "/") + "securityRealm/finishLogin";
+
+        List<NameValuePair> parameters = new ArrayList<>();
+        parameters.add( new BasicNameValuePair( "client_id", clientID ) );
+        parameters.add( new BasicNameValuePair( "client_secret", clientSecret ) );
+        parameters.add( new BasicNameValuePair( "code", code ) );
+        parameters.add( new BasicNameValuePair( "grant_type", "authorization_code" ) );
+        parameters.add( new BasicNameValuePair( "redirect_uri", redirectUrl ) );
+
+        final String content = getUrlContent( new HttpGet( getServerURL() + PHAB_OAUTH + "/token/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.name() ) ) );
+        String accessToken;
+        try {
+            JSONObject jsonObject = new JSONObject( content );
+            accessToken = jsonObject.getString( "access_token" );
+        } catch ( JSONException e ) {
+            LOGGER.log( Level.WARNING, "accessToken not found=" + e.getMessage() );
+            LOGGER.log( Level.WARNING, "Request was: " + getServerURL() + PHAB_OAUTH + "/token/?" + URLEncodedUtils.format( parameters, StandardCharsets.UTF_8.name() ) );
+            LOGGER.log( Level.WARNING, "Response was: " + content );
+            accessToken = null;
+        }
+
+        if ( accessToken != null && accessToken.trim().length() > 0 ) {
+            final PhabricatorAuthenticationToken auth = new PhabricatorAuthenticationToken( accessToken );
+            SecurityContextHolder.getContext().setAuthentication( auth ); // This sets the Jenkins User ID to the username used in Phabricator
+            PhabricatorUser phabricatorUser = auth.getUser();
+
+            // prevent session fixation attack
+            Stapler.getCurrentRequest().getSession().invalidate();
+            Stapler.getCurrentRequest().getSession();
+
+            User jenkinsUser = User.current(); // == User.get( phabricatorUser.getUsername() ) since the username has already been set according to the one of Phabricator
+            if ( jenkinsUser == null ) {
+                // This should never happen. We got a username from Phabricator and if this user did not already exist in Jenkins it was created by invoking `User.current()`. It can be `null` if and only if no `Authentication` is set in the `SecurityContextHolder`.
+                throw new IllegalStateException( "jenkinsUser == null" );
+            }
+            jenkinsUser.setFullName( phabricatorUser.getRealname() );
+            jenkinsUser.addProperty( new Mailer.UserProperty( phabricatorUser.getEmail() ) );
+
+            SecurityListener.fireLoggedIn( jenkinsUser.getId() );
+        } else {
+            Log.warn( "Phabricator did not return an access token." );
+        }
+
+        String referer = (String) request.getSession().getAttribute( REFERER_ATTRIBUTE );
+        if ( referer != null ) {
+            return HttpResponses.redirectTo( referer );
+        }
+
+        return HttpResponses.redirectToContextRoot();
+    }
+
+
+    protected String getUrlContent( final HttpUriRequest request ) throws IOException {
+        DefaultHttpClient httpClient = null;
+        try {
+            httpClient = new DefaultHttpClient();
+            return EntityUtils.toString( httpClient.execute( request ).getEntity() );
+        } finally {
+            if ( httpClient != null ) {
+                httpClient.getConnectionManager().shutdown();
+            }
+        }
+    }
+
+
+    @Override
+    public SecurityComponents createSecurityComponents() {
+        final SecurityComponents securityComponents = super.createSecurityComponents();
+
+        return new SecurityComponents( authentication -> {
+            if ( authentication instanceof PhabricatorAuthenticationToken ) {
+                return authentication;
+            }
+            return securityComponents.manager2.authenticate( authentication );
+        }, securityComponents.userDetails2 );
     }
 
 
@@ -742,4 +756,39 @@ public class PhabricatorSecurityRealm extends AbstractPasswordBasedSecurityRealm
             super( clazz );
         }
     }
+
+
+    private static final Filter CREATE_FIRST_USER_FILTER = new Filter() {
+        public void init( FilterConfig config ) throws ServletException {
+        }
+
+
+        public void doFilter( ServletRequest request, ServletResponse response, FilterChain chain ) throws IOException, ServletException {
+            HttpServletRequest req = (HttpServletRequest) request;
+
+            /* allow signup from the Jenkins home page, or /manage, which is where a /configureSecurity form redirects to */
+            if ( req.getRequestURI().equals( req.getContextPath() + "/" ) || req.getRequestURI().equals( req.getContextPath() + "/manage" ) ) {
+                if ( needsToCreateFirstUser() ) {
+                    ((HttpServletResponse) response).sendRedirect( "securityRealm/firstUser" );
+                } else {// the first user already created. the role of this filter is over.
+                    PluginServletFilter.removeFilter( this );
+                    chain.doFilter( request, response );
+                }
+            } else {
+                chain.doFilter( request, response );
+            }
+        }
+
+
+        private boolean needsToCreateFirstUser() {
+            return !hasSomeUser() && Jenkins.get().getSecurityRealm() instanceof HudsonPrivateSecurityRealm;
+        }
+
+
+        public void destroy() {
+        }
+    };
+
+
+    private static final Logger LOGGER = Logger.getLogger( PhabricatorSecurityRealm.class.getName() );
 }

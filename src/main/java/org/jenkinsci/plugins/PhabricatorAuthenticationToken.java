@@ -29,16 +29,17 @@ package org.jenkinsci.plugins;
 import hudson.security.SecurityRealm;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import jenkins.model.Jenkins;
-import org.acegisecurity.BadCredentialsException;
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.providers.AbstractAuthenticationToken;
 import org.apache.http.client.methods.HttpGet;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.springframework.security.authentication.AbstractAuthenticationToken;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.core.GrantedAuthority;
 
 
 public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken {
@@ -55,11 +56,9 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
 
     public PhabricatorAuthenticationToken( String accessToken ) throws IOException {
-        super( new GrantedAuthority[]{} );
+        super( Collections.singletonList( SecurityRealm.AUTHENTICATED_AUTHORITY2 ) );
 
         this.accessToken = accessToken;
-
-        authorities.add( SecurityRealm.AUTHENTICATED_AUTHORITY );
 
         user = authUsingToken();
         if ( user == null ) {
@@ -74,13 +73,15 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
     protected PhabricatorUser authUsingToken() throws IOException {
         LOGGER.log( Level.WARNING, "Login using token" );
 
-        final Jenkins jenkins = Jenkins.getInstance();
+        final Jenkins jenkins = Jenkins.get();
         final PhabricatorSecurityRealm phabricator;
+
         if ( jenkins.getSecurityRealm() instanceof PhabricatorSecurityRealm ) {
             phabricator = (PhabricatorSecurityRealm) jenkins.getSecurityRealm();
         } else {
             throw new IllegalStateException( "jenkins.getSecurityRealm() is not PhabricatorSecurityRealm" );
         }
+
         final String requestUri = phabricator.getServerURL() + PhabricatorSecurityRealm.PHAB_API_USER_WHOAMI + "?access_token=" + accessToken;
         final String result = phabricator.getUrlContent( new HttpGet( requestUri ) );
 
@@ -111,12 +112,6 @@ public class PhabricatorAuthenticationToken extends AbstractAuthenticationToken 
 
     public String getPrincipal() {
         return this.userName;
-    }
-
-
-    @Override
-    public GrantedAuthority[] getAuthorities() {
-        return authorities.toArray( new GrantedAuthority[authorities.size()] );
     }
 
 

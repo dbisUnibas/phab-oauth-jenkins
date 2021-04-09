@@ -25,9 +25,11 @@
 package org.jenkinsci.plugins;
 
 
-import org.acegisecurity.GrantedAuthority;
-import org.acegisecurity.userdetails.User;
-import org.acegisecurity.userdetails.UserDetails;
+import hudson.security.HudsonPrivateSecurityRealm.Details;
+import java.util.Collection;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 
 
 public class PhabricatorOAuthUserDetails extends User implements UserDetails {
@@ -35,8 +37,12 @@ public class PhabricatorOAuthUserDetails extends User implements UserDetails {
     private static final long serialVersionUID = 1L;
 
 
-    public PhabricatorOAuthUserDetails( String user, GrantedAuthority[] authorities ) {
-        super( user, "nopassword", true, true, true, true, authorities );
+    public PhabricatorOAuthUserDetails( String username, Collection<? extends GrantedAuthority> authorities ) {
+        super( username, "nopassword", true, true, true, true, authorities );
     }
 
+
+    public PhabricatorOAuthUserDetails( Details user ) {
+        super( user.getUsername(), user.getPassword(), user.isEnabled(), user.isAccountNonExpired(), user.isCredentialsNonExpired(), user.isAccountNonLocked(), user.getAuthorities2() );
+    }
 }

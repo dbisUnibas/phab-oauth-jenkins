@@ -4,17 +4,27 @@
     <parent>
         <groupId>org.jenkins-ci.plugins</groupId>
         <artifactId>plugin</artifactId>
-        <version>2.2</version>
+        <version>4.15</version>
+        <relativePath/>
     </parent>
+
+    <name>DBIS Jenkins Plugin "Phabricator OAuth"</name>
+    <description>Phabricator Authentication for Jenkins</description>
 
     <groupId>org.jenkins-ci.plugins</groupId>
     <artifactId>phab-oauth</artifactId>
-    <version>0.1.0-DBIS</version>
-    <name>DBIS Jenkins Plugin "Phabricator OAuth"</name>
-    <description>Phabricator Authentication for Jenkins</description>
+    <version>0.2.0-DBIS</version>
     <packaging>hpi</packaging>
 
     <url></url>
+
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <jenkins.version>2.277.1</jenkins.version>
+        <java.level>8</java.level>
+        <findbugs.failOnError>false</findbugs.failOnError>
+    </properties>
 
     <licenses>
         <license>
@@ -36,76 +46,47 @@
         </developer>
     </developers>
 
-    <!-- Use repositories suggested in plugin tutorial: https://wiki.jenkins-ci.org/display/JENKINS/Plugin+tutorial -->
     <repositories>
         <repository>
             <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
+            <url>https://repo.jenkins-ci.org/public/</url>
         </repository>
     </repositories>
     <pluginRepositories>
         <pluginRepository>
             <id>repo.jenkins-ci.org</id>
-            <url>http://repo.jenkins-ci.org/public/</url>
+            <url>https://repo.jenkins-ci.org/public/</url>
         </pluginRepository>
     </pluginRepositories>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <!-- Pick up common dependencies for the selected LTS line: https://github.com/jenkinsci/bom#usage -->
+                <groupId>io.jenkins.tools.bom</groupId>
+                <artifactId>bom-2.277.x</artifactId>
+                <version>25</version>
+                <scope>import</scope>
+                <type>pom</type>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
             <groupId>org.jenkins-ci.plugins</groupId>
             <artifactId>mailer</artifactId>
-            <version>1.4</version>
         </dependency>
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
             <artifactId>httpclient</artifactId>
-            <version>4.1</version>
+            <version>4.5.13</version>
         </dependency>
 
         <dependency>
             <groupId>org.json</groupId>
             <artifactId>json</artifactId>
-            <version>20090211</version>
+            <version>20210307</version>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>1.7</source>
-                    <target>1.7</target>
-                    <debug>true</debug>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.jenkins-ci.tools</groupId>
-                <artifactId>maven-hpi-plugin</artifactId>
-                <version>2.6</version>
-                <extensions>true</extensions>
-                <configuration>
-                    <disabledTestInjection>true</disabledTestInjection>
-                </configuration>
-            </plugin>
-
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>findbugs-maven-plugin</artifactId>
-                <version>3.0.5</version>
-                <configuration>
-                    <fork>false</fork>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
-
-    <properties>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
-        <jenkins.version>2.3</jenkins.version>
-        <findbugs.failOnError>false</findbugs.failOnError>
-    </properties>
 </project>
